@@ -35,6 +35,7 @@ var (
 )
 
 // Provider defines the interface for providing custom k6 binaries
+// from a k6build service
 type Provider interface {
 	// GetBinary returns the path to a custom k6 binary that satisfies the given dependencies
 	// Dependencies can be obtained using k6deps package
@@ -60,7 +61,14 @@ type provider struct {
 	platform string
 }
 
-// NewProvider returns a provider with the given Options
+// NewDefaultProvider returns a Provider with default settings
+// Expects the K6_BUILD_SERVICE_URL environment variable to be set
+// with the URL to the k6build service
+func NewDefaultProvider() (Provider, error) {
+	return NewProvider(Config{})
+}
+
+// NewProvider returns a Provider with the given Options
 func NewProvider(config Config) (Provider, error) {
 	binDir := config.BinDir
 	if binDir == "" {
