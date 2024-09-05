@@ -19,6 +19,7 @@ import (
 )
 
 const (
+	k6Binary = "k6"
 	k6Module = "k6"
 )
 
