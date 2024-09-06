@@ -72,7 +72,7 @@ func NewDefaultProvider() (Provider, error) {
 func NewProvider(config Config) (Provider, error) {
 	binDir := config.BinDir
 	if binDir == "" {
-		binDir = os.TempDir()
+		binDir = filepath.Join(os.TempDir(), "k6provider", "cache")
 	}
 
 	httpClient := config.Client
