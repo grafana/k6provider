@@ -80,7 +80,7 @@ func Test_Provider(t *testing.T) { //nolint:paralleltest
 			if !errors.Is(tc.expectErr, err) {
 				t.Fatalf("expected %v got %v", tc.expectErr, err)
 			}
-			cmd := exec.Command(k6, "version")
+			cmd := exec.Command(k6.Path, "version")
 
 			out, err := cmd.Output()
 			if err != nil {

@@ -3,6 +3,7 @@
 package k6provider
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -34,12 +35,32 @@ var (
 	ErrDownload = errors.New("downloading binary")
 )
 
+// K6Binary defines the attributes of a k6 binary
+type K6Binary struct {
+	// Path to the binary
+	Path string
+	// Dependencies as a map of name: version
+	// e.g. {"k6": "v0.50.0", "k6/x/kubernetes": "v0.9.0"}
+	Dependencies map[string]string
+	// Checksum of the binary
+	Checksum string
+}
+
+// UnmarshalDeps returns the dependencies as a list of name:version pairs separated by ";"
+func (b K6Binary) UnmarshalDeps() string {
+	buffer := &bytes.Buffer{}
+	for dep, version := range b.Dependencies {
+		buffer.WriteString(fmt.Sprintf("%s:%q;", dep, version))
+	}
+	return buffer.String()
+}
+
 // Provider defines the interface for providing custom k6 binaries
 // from a k6build service
 type Provider interface {
-	// GetBinary returns the path to a custom k6 binary that satisfies the given dependencies
+	// GetBinary returns the a custom k6 binary that satisfies the given dependencies
 	// Dependencies can be obtained using k6deps package
-	GetBinary(ctx context.Context, deps k6deps.Dependencies) (string, error)
+	GetBinary(ctx context.Context, deps k6deps.Dependencies) (K6Binary, error)
 }
 
 // Config defines the configuration of the Provider.
@@ -108,12 +129,12 @@ func NewProvider(config Config) (Provider, error) {
 func (p *provider) GetBinary(
 	ctx context.Context,
 	deps k6deps.Dependencies,
-) (string, error) {
+) (K6Binary, error) {
 	k6Constrains, buildDeps := buildDeps(deps)
 
 	artifact, err := p.buildSrv.Build(ctx, p.platform, k6Constrains, buildDeps)
 	if err != nil {
-		return "", fmt.Errorf("%w: %w", ErrBuild, err)
+		return K6Binary{}, fmt.Errorf("%w: %w", ErrBuild, err)
 	}
 
 	artifactDir := filepath.Join(p.bidDir, artifact.ID)
@@ -122,18 +143,22 @@ func (p *provider) GetBinary(
 
 	// binary already exists
 	if err == nil {
-		return binPath, nil
+		return K6Binary{
+			Path:         binPath,
+			Dependencies: artifact.Dependencies,
+			Checksum:     artifact.Checksum,
+		}, nil
 	}
 
 	// other error
 	if !os.IsNotExist(err) {
-		return "", fmt.Errorf("%w: %w", ErrBinary, err)
+		return K6Binary{}, fmt.Errorf("%w: %w", ErrBinary, err)
 	}
 
 	// binary doesn't exists
 	err = os.MkdirAll(artifactDir, syscall.S_IRWXU)
 	if err != nil {
-		return "", fmt.Errorf("%w: %w", ErrBinary, err)
+		return K6Binary{}, fmt.Errorf("%w: %w", ErrBinary, err)
 	}
 
 	target, err := os.OpenFile( //nolint:gosec
@@ -142,18 +167,22 @@ func (p *provider) GetBinary(
 		syscall.S_IRUSR|syscall.S_IXUSR|syscall.S_IWUSR,
 	)
 	if err != nil {
-		return "", fmt.Errorf("%w: %w", ErrBinary, err)
+		return K6Binary{}, fmt.Errorf("%w: %w", ErrBinary, err)
 	}
 
 	err = p.download(ctx, artifact.URL, target)
 	if err != nil {
 		_ = os.RemoveAll(artifactDir)
-		return "", err
+		return K6Binary{}, err
 	}
 
 	_ = target.Close()
 
-	return binPath, nil
+	return K6Binary{
+		Path:         binPath,
+		Dependencies: artifact.Dependencies,
+		Checksum:     artifact.Checksum,
+	}, nil
 }
 
 func (p *provider) download(ctx context.Context, from string, dest io.Writer) error {
