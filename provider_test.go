@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"net/http/httptest"
+	"net/http/httputil"
+	"net/url"
 	"os/exec"
 	"path/filepath"
 	"testing"
@@ -33,53 +35,87 @@ func Test_Provider(t *testing.T) { //nolint:paralleltest
 		CacheURL:  cacheSrv.URL,
 	}
 
-	// 3. configure a local builder
+	// 3. start a download proxy
+	cacheURL, _ := url.Parse(cacheSrv.URL)
+	proxyHandler := httputil.NewSingleHostReverseProxy(cacheURL)
+	proxy := httptest.NewServer(proxyHandler)
+	defer proxy.Close()
+
+	// 4. configure a local builder
 	builder, err := local.NewBuildService(context.TODO(), buildConfig)
 	if err != nil {
 		t.Fatalf("setup %v", err)
 	}
 
-	// 4. start a builder server
+	// 5. start a builder server
 	srvConfig := server.APIServerConfig{
 		BuildService: builder,
 	}
 	buildSrv := httptest.NewServer(server.NewAPIServer(srvConfig))
 
-	// 5. configure the provider to use the build service
-	config := Config{
-		BinDir:          filepath.Join(t.TempDir(), "provider"),
-		BuildServiceURL: buildSrv.URL,
-	}
-	provider, err := NewProvider(config)
-	if err != nil {
-		t.Fatalf("initializing provider %v", err)
-	}
-
 	testCases := []struct {
 		title     string
 		opts      *k6deps.Options
+		config    Config
 		expectErr error
 		expect    string
 	}{
 		{
 			title: "build k6 from env variable",
+			config: Config{
+				BinDir:          filepath.Join(t.TempDir(), "provider"),
+				BuildServiceURL: buildSrv.URL,
+			},
 			opts: &k6deps.Options{
 				Env: k6deps.Source{Name: "K6_DEPS", Contents: []byte("k6=v0.50.0")},
 			},
+		},
+		{
+			title: "test download using proxy",
+			config: Config{
+				BinDir:           filepath.Join(t.TempDir(), "provider"),
+				BuildServiceURL:  buildSrv.URL,
+				DownloadProxyURL: proxy.URL,
+			},
+			opts: &k6deps.Options{
+				Env: k6deps.Source{Name: "K6_DEPS", Contents: []byte("k6=v0.50.0")},
+			},
+		},
+		{
+			title: "test proxy unavailable",
+			config: Config{
+				BinDir:           filepath.Join(t.TempDir(), "provider"),
+				BuildServiceURL:  buildSrv.URL,
+				DownloadProxyURL: "http://127.0.0.1:12345",
+			},
+			opts: &k6deps.Options{
+				Env: k6deps.Source{Name: "K6_DEPS", Contents: []byte("k6=v0.50.0")},
+			},
+			expectErr: ErrDownload,
 		},
 	}
 
 	for _, tc := range testCases { //nolint:paralleltest
 		t.Run(tc.title, func(t *testing.T) {
+			provider, err := NewProvider(tc.config)
+			if err != nil {
+				t.Fatalf("initializing provider %v", err)
+			}
+
 			deps, err := k6deps.Analyze(tc.opts)
 			if err != nil {
 				t.Fatalf("analizing dependencies %v", err)
 			}
 
 			k6, err := provider.GetBinary(context.TODO(), deps)
-			if !errors.Is(tc.expectErr, err) {
+			if !errors.Is(err, tc.expectErr) {
 				t.Fatalf("expected %v got %v", tc.expectErr, err)
 			}
+
+			if err != nil {
+				return
+			}
+
 			cmd := exec.Command(k6.Path, "version")
 
 			out, err := cmd.Output()

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -29,6 +30,8 @@ var (
 	ErrBinary = errors.New("creating binary")
 	// ErrBuild indicates an error building binary
 	ErrBuild = errors.New("building binary")
+	// ErrConfig is produced by invalid configuration
+	ErrConfig = errors.New("invalid configuration")
 	// ErrDependency is produced by invalid dependencies
 	ErrDependency = errors.New("invalid dependency")
 	// ErrDownload indicates an error downloading binary
@@ -71,6 +74,8 @@ type Config struct {
 	BinDir string
 	// BuildServiceURL URL of the k6 build service
 	BuildServiceURL string
+	// DownloadProxyURL URL to proxy for downloading binaries
+	DownloadProxyURL string
 }
 
 type provider struct {
@@ -88,6 +93,8 @@ func NewDefaultProvider() (Provider, error) {
 }
 
 // NewProvider returns a Provider with the given Options
+// If BuildServiceURL is not set, it will use the K6_BUILD_SERVICE_URL environment variable
+// If DownloadProxyURL is not set, it will use the K6_DOWNLOAD_PROXY environment variable
 func NewProvider(config Config) (Provider, error) {
 	binDir := config.BinDir
 	if binDir == "" {
@@ -95,6 +102,20 @@ func NewProvider(config Config) (Provider, error) {
 	}
 
 	httpClient := http.DefaultClient
+
+	proxyURL := config.DownloadProxyURL
+	if proxyURL == "" {
+		proxyURL = os.Getenv("K6_DOWNLOAD_PROXY")
+	}
+	if proxyURL != "" {
+		parsed, err := url.Parse(proxyURL)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %w", ErrConfig, err)
+		}
+		proxy := http.ProxyURL(parsed)
+		transport := &http.Transport{Proxy: proxy}
+		httpClient = &http.Client{Transport: transport}
+	}
 
 	buildSrvURL := config.BuildServiceURL
 	if buildSrvURL == "" {
