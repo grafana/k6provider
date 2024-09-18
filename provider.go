@@ -61,8 +61,20 @@ func (b K6Binary) UnmarshalDeps() string {
 // Provider defines the interface for providing custom k6 binaries
 // from a k6build service
 type Provider interface {
-	// GetBinary returns the a custom k6 binary that satisfies the given dependencies
-	// Dependencies can be obtained using k6deps package
+	// GetBinary returns a custom k6 binary that satisfies the given dependencies.
+	//
+	// If the k6 version constrains are not specified, "*" is used as default.
+	//
+	// If the binary for the given dependencies does not exist, it will be built
+	// using the configured build service and stored in the cache directory.
+	//
+	// If the binary exists, it will be returned from the cache.
+	//
+	// The returned K6Binary has the path to the custom k6 binary, the list of
+	// dependencies and the checksum of the binary.
+	//
+	// If any error occurs while building, downloading or checking the binary,
+	// an error will be returned.
 	GetBinary(ctx context.Context, deps k6deps.Dependencies) (K6Binary, error)
 }
 
@@ -86,6 +98,7 @@ type provider struct {
 }
 
 // NewDefaultProvider returns a Provider with default settings
+//
 // Expects the K6_BUILD_SERVICE_URL environment variable to be set
 // with the URL to the k6build service
 func NewDefaultProvider() (Provider, error) {
@@ -93,6 +106,7 @@ func NewDefaultProvider() (Provider, error) {
 }
 
 // NewProvider returns a Provider with the given Options
+//
 // If BuildServiceURL is not set, it will use the K6_BUILD_SERVICE_URL environment variable
 // If DownloadProxyURL is not set, it will use the K6_DOWNLOAD_PROXY environment variable
 func NewProvider(config Config) (Provider, error) {
@@ -224,6 +238,9 @@ func (p *provider) download(ctx context.Context, from string, dest io.Writer) er
 	return err
 }
 
+// buildDeps takes a set of k6 dependencies and returns a string representing
+// the version constraints for the k6 and a slice of k6build.Dependencies
+// representing the extension dependencies. The default k6 constrain is "*".
 func buildDeps(deps k6deps.Dependencies) (string, []k6build.Dependency) {
 	bdeps := make([]k6build.Dependency, 0, len(deps))
 	k6constraint := "*"
