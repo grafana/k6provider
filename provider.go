@@ -67,8 +67,6 @@ type Provider interface {
 type Config struct {
 	// Platform for the binaries. Defaults to the current platform
 	Platform string
-	// Client is the HTTP client used for downloading files
-	Client *http.Client
 	// BinDir path to binary directory. Defaults to the os' tmp dir
 	BinDir string
 	// BuildServiceURL URL of the k6 build service
@@ -96,10 +94,8 @@ func NewProvider(config Config) (Provider, error) {
 		binDir = filepath.Join(os.TempDir(), "k6provider", "cache")
 	}
 
-	httpClient := config.Client
-	if httpClient == nil {
-		httpClient = http.DefaultClient
-	}
+	httpClient := http.DefaultClient
+
 	buildSrvURL := config.BuildServiceURL
 	if buildSrvURL == "" {
 		buildSrvURL = os.Getenv("K6_BUILD_SERVICE_URL")
