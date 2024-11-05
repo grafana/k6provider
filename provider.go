@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"syscall"
+	"time"
 
 	"github.com/grafana/k6build"
 	"github.com/grafana/k6build/pkg/client"
@@ -21,8 +22,9 @@ import (
 )
 
 const (
-	k6Binary = "k6"
-	k6Module = "k6"
+	k6Binary             = "k6"
+	k6Module             = "k6"
+	defaultPruneInterval = time.Hour
 )
 
 var (
@@ -36,6 +38,8 @@ var (
 	ErrDependency = errors.New("invalid dependency")
 	// ErrDownload indicates an error downloading binary
 	ErrDownload = errors.New("downloading binary")
+	// ErrPruningCache indicates an error pruning the binary cache
+	ErrPruningCache = errors.New("pruning cache")
 )
 
 // K6Binary defines the attributes of a k6 binary
@@ -88,13 +92,18 @@ type Config struct {
 	BuildServiceURL string
 	// DownloadProxyURL URL to proxy for downloading binaries
 	DownloadProxyURL string
+	// HighWaterMark is the upper limit of cache size to trigger a prune
+	HighWaterMark int64
+	// PruneInterval minimum time between prune attempts. Defaults to 1h
+	PruneInterval time.Duration
 }
 
 type provider struct {
 	client   *http.Client
-	bidDir   string
+	binDir   string
 	buildSrv k6build.BuildService
 	platform string
+	pruner   *pruner
 }
 
 // NewDefaultProvider returns a Provider with default settings
@@ -149,11 +158,22 @@ func NewProvider(config Config) (Provider, error) {
 	if platform == "" {
 		platform = fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH)
 	}
+
+	pruneInterval := config.PruneInterval
+	if config.HighWaterMark > 0 && pruneInterval == 0 {
+		pruneInterval = defaultPruneInterval
+	}
+
 	return &provider{
 		client:   httpClient,
-		bidDir:   binDir,
+		binDir:   binDir,
 		buildSrv: buildSrv,
 		platform: platform,
+		pruner: &pruner{
+			dir:           binDir,
+			hwm:           config.HighWaterMark,
+			pruneInterval: pruneInterval,
+		},
 	}, nil
 }
 
@@ -168,12 +188,14 @@ func (p *provider) GetBinary(
 		return K6Binary{}, fmt.Errorf("%w: %w", ErrBuild, err)
 	}
 
-	artifactDir := filepath.Join(p.bidDir, artifact.ID)
+	artifactDir := filepath.Join(p.binDir, artifact.ID)
 	binPath := filepath.Join(artifactDir, k6Binary)
 	_, err = os.Stat(binPath)
 
 	// binary already exists
 	if err == nil {
+		go p.pruner.touch(binPath)
+
 		return K6Binary{
 			Path:         binPath,
 			Dependencies: artifact.Dependencies,
@@ -208,6 +230,10 @@ func (p *provider) GetBinary(
 	}
 
 	_ = target.Close()
+
+	// start pruning in background
+	// TODO: handle case the calling process is cancelled
+	go p.pruner.prune() //nolint:errcheck
 
 	return K6Binary{
 		Path:         binPath,
