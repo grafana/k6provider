@@ -14,6 +14,7 @@ import (
 // defined in the hwm parameter.
 type pruner struct {
 	pruneLock     sync.Mutex
+	dirLock       *dirLock
 	dir           string
 	hwm           int64
 	pruneInterval time.Duration
@@ -24,6 +25,15 @@ type pruneTarget struct {
 	path      string
 	size      int64
 	timestamp time.Time
+}
+
+func newPruner(dir string, hwm int64, pruneInterval time.Duration) *pruner {
+	return &pruner{
+		dirLock:       newFileLock(dir),
+		dir:           dir,
+		hwm:           hwm,
+		pruneInterval: pruneInterval,
+	}
 }
 
 // update access time because reading the file not always updates it
@@ -51,6 +61,19 @@ func (p *pruner) prune() error {
 		return nil
 	}
 	p.lastPrune = time.Now()
+
+	// prevent concurrent prune to the directory
+	err := p.dirLock.lock()
+	if err != nil {
+		// is locked, another pruner must be running (maybe another process)
+		if errors.Is(err, ErrLocked) {
+			return nil
+		}
+		return fmt.Errorf("%w: %w", ErrPruningCache, err)
+	}
+	defer func() {
+		_ = p.dirLock.unlock()
+	}()
 
 	binaries, err := os.ReadDir(p.dir)
 	if err != nil {

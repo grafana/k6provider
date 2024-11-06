@@ -97,12 +97,9 @@ func TestPruner(t *testing.T) {
 				_ = os.Chmod(filepath.Join(tmpDir, "binary-4"), 0o750)
 			})
 
-			pruner := &pruner{
-				dir:           tmpDir,
-				hwm:           tc.hwm,
-				lastPrune:     tc.lastPrune,
-				pruneInterval: time.Hour,
-			}
+			pruner := newPruner(tmpDir, tc.hwm, time.Hour)
+			// force time of last prune
+			pruner.lastPrune = tc.lastPrune
 
 			err := pruner.prune()
 

@@ -169,11 +169,7 @@ func NewProvider(config Config) (Provider, error) {
 		binDir:   binDir,
 		buildSrv: buildSrv,
 		platform: platform,
-		pruner: &pruner{
-			dir:           binDir,
-			hwm:           config.HighWaterMark,
-			pruneInterval: pruneInterval,
-		},
+		pruner:   newPruner(binDir, config.HighWaterMark, pruneInterval),
 	}, nil
 }
 
@@ -209,7 +205,7 @@ func (p *provider) GetBinary(
 	}
 
 	// binary doesn't exists
-	err = os.MkdirAll(artifactDir, syscall.S_IRWXU)
+	err = os.MkdirAll(artifactDir, 0o700)
 	if err != nil {
 		return K6Binary{}, fmt.Errorf("%w: %w", ErrBinary, err)
 	}
