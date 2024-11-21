@@ -25,12 +25,13 @@ const (
 	k6Binary             = "k6"
 	k6Module             = "k6"
 	defaultPruneInterval = time.Hour
+	defaultAuthType      = "Bearer"
 )
 
 var (
 	// ErrBinary indicates an error creating local binary
 	ErrBinary = errors.New("creating binary")
-	// ErrBuild indicates an error building binary
+	// ErrBuild indicates an error building binaryq
 	ErrBuild = errors.New("building binary")
 	// ErrConfig is produced by invalid configuration
 	ErrConfig = errors.New("invalid configuration")
@@ -89,7 +90,19 @@ type Config struct {
 	// BinDir path to binary directory. Defaults to the os' tmp dir
 	BinDir string
 	// BuildServiceURL URL of the k6 build service
+	// If not specified the value from K6_BUILD_SERVICE_URL environment variable is used
 	BuildServiceURL string
+	// BuildServiceAuthType type of passed in the header "Authorization: <type> <auth>".
+	// Can be used to set the type as "Basic", "Token" or any custom type. Default to "Bearer"
+	BuildServiceAuthType string
+	// BuildServiceAuth contain authorization credentials for BuildService requests
+	// Passed in the "Authorization <type> <credentials" (see BuildServiceAuthType for the meaning of <type>)
+	// If not specified the value of K6_BUILD_SERVICE_AUTH is used.
+	// If no value is defined, the Authentication header is not passed (except is passed as a custom header
+	// see BuildServiceHeaders)
+	BuildServiceAuth string
+	// BuildServiceHeaders HTTP headers for the k6 build service
+	BuildServiceHeaders map[string]string
 	// DownloadProxyURL URL to proxy for downloading binaries
 	DownloadProxyURL string
 	// HighWaterMark is the upper limit of cache size to trigger a prune
@@ -144,10 +157,26 @@ func NewProvider(config Config) (Provider, error) {
 	if buildSrvURL == "" {
 		buildSrvURL = os.Getenv("K6_BUILD_SERVICE_URL")
 	}
+	if buildSrvURL == "" {
+		return nil, ErrConfig
+	}
+
+	buildSrvAuth := config.BuildServiceAuth
+	if buildSrvAuth == "" {
+		buildSrvAuth = os.Getenv("K6_BUILD_SERVICE_AUTH")
+	}
+
+	buildSrvAuthType := config.BuildServiceAuthType
+	if buildSrvAuthType == "" && buildSrvAuth != "" {
+		buildSrvAuthType = "Bearer"
+	}
 
 	buildSrv, err := client.NewBuildServiceClient(
 		client.BuildServiceClientConfig{
-			URL: buildSrvURL,
+			URL:               buildSrvURL,
+			Authorization:     buildSrvAuth,
+			AuthorizationType: buildSrvAuthType,
+			Headers:           config.BuildServiceHeaders,
 		},
 	)
 	if err != nil {
