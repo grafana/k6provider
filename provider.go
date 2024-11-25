@@ -31,7 +31,7 @@ const (
 var (
 	// ErrBinary indicates an error creating local binary
 	ErrBinary = errors.New("creating binary")
-	// ErrBuild indicates an error building binaryq
+	// ErrBuild indicates an error building binary
 	ErrBuild = errors.New("building binary")
 	// ErrConfig is produced by invalid configuration
 	ErrConfig = errors.New("invalid configuration")
@@ -42,6 +42,25 @@ var (
 	// ErrPruningCache indicates an error pruning the binary cache
 	ErrPruningCache = errors.New("pruning cache")
 )
+
+// WrappedError defines a custom error type that allows extracting
+// the error and its reason using the Err() and unwrap() methods, respectively
+// This type is compatible with the error interface
+type WrappedError = *k6build.Error
+
+// NewWrappedError return a new Error
+func NewWrappedError(err error, reason error) WrappedError {
+	return k6build.NewError(err, reason)
+}
+
+// AsWrappedError returns and error as a WrapperError, if possible
+func AsWrappedError(err error) (WrappedError, bool) {
+	buildErr := &k6build.Error{}
+	if !errors.As(err, &buildErr) {
+		return nil, false
+	}
+	return buildErr, true
+}
 
 // K6Binary defines the attributes of a k6 binary
 type K6Binary struct {
@@ -146,7 +165,7 @@ func NewProvider(config Config) (Provider, error) {
 	if proxyURL != "" {
 		parsed, err := url.Parse(proxyURL)
 		if err != nil {
-			return nil, fmt.Errorf("%w: %w", ErrConfig, err)
+			return nil, NewWrappedError(ErrConfig, err)
 		}
 		proxy := http.ProxyURL(parsed)
 		transport := &http.Transport{Proxy: proxy}
@@ -158,7 +177,7 @@ func NewProvider(config Config) (Provider, error) {
 		buildSrvURL = os.Getenv("K6_BUILD_SERVICE_URL")
 	}
 	if buildSrvURL == "" {
-		return nil, ErrConfig
+		return nil, NewWrappedError(ErrConfig, fmt.Errorf("build service URL is required"))
 	}
 
 	buildSrvAuth := config.BuildServiceAuth
@@ -180,7 +199,7 @@ func NewProvider(config Config) (Provider, error) {
 		},
 	)
 	if err != nil {
-		return nil, err
+		return nil, NewWrappedError(ErrConfig, err)
 	}
 
 	platform := config.Platform
@@ -210,7 +229,7 @@ func (p *provider) GetBinary(
 
 	artifact, err := p.buildSrv.Build(ctx, p.platform, k6Constrains, buildDeps)
 	if err != nil {
-		return K6Binary{}, fmt.Errorf("%w: %w", ErrBuild, err)
+		return K6Binary{}, NewWrappedError(ErrBuild, err)
 	}
 
 	artifactDir := filepath.Join(p.binDir, artifact.ID)
@@ -230,13 +249,13 @@ func (p *provider) GetBinary(
 
 	// other error
 	if !os.IsNotExist(err) {
-		return K6Binary{}, fmt.Errorf("%w: %w", ErrBinary, err)
+		return K6Binary{}, NewWrappedError(ErrBinary, err)
 	}
 
 	// binary doesn't exists
 	err = os.MkdirAll(artifactDir, 0o700)
 	if err != nil {
-		return K6Binary{}, fmt.Errorf("%w: %w", ErrBinary, err)
+		return K6Binary{}, NewWrappedError(ErrBinary, err)
 	}
 
 	target, err := os.OpenFile( //nolint:gosec
@@ -245,13 +264,13 @@ func (p *provider) GetBinary(
 		syscall.S_IRUSR|syscall.S_IXUSR|syscall.S_IWUSR,
 	)
 	if err != nil {
-		return K6Binary{}, fmt.Errorf("%w: %w", ErrBinary, err)
+		return K6Binary{}, NewWrappedError(ErrBinary, err)
 	}
 
 	err = p.download(ctx, artifact.URL, target)
 	if err != nil {
 		_ = os.RemoveAll(artifactDir)
-		return K6Binary{}, err
+		return K6Binary{}, NewWrappedError(ErrDownload, err)
 	}
 
 	_ = target.Close()
@@ -270,16 +289,16 @@ func (p *provider) GetBinary(
 func (p *provider) download(ctx context.Context, from string, dest io.Writer) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, from, nil)
 	if err != nil {
-		return fmt.Errorf("%w: %w", ErrDownload, err)
+		return err
 	}
 
 	resp, err := p.client.Do(req)
 	if err != nil {
-		return fmt.Errorf("%w: %w", ErrDownload, err)
+		return err
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("%w: %s", ErrDownload, from)
+		return fmt.Errorf("status %s", resp.Status)
 	}
 
 	defer resp.Body.Close() //nolint:errcheck
