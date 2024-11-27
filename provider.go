@@ -43,9 +43,38 @@ var (
 	ErrPruningCache = errors.New("pruning cache")
 )
 
-// WrappedError defines a custom error type that allows extracting
-// the error and its reason using the Err() and unwrap() methods, respectively
-// This type is compatible with the error interface
+// WrappedError defines a custom error type that allows creating an error
+// specifying its cause.
+//
+// This type is compatible with the error interface.
+//
+// Contrary to the error wrapping mechanism provided by the standard library
+// the cause can be extracted using the unwrap() method.
+//
+// WrappedError also implements the Is method to that it can compare to an error
+// based on the result of the Error() method, overcoming a limitation of the error
+// implemented in the stdlib.
+//
+// Example:
+// var (
+//
+//		err    = errors.New("error")
+//		root   = errors.New("root cause")
+//		cause  = NewWrappedError(cause, root)
+//	        ferr   = fmt.Errorf("%w %w", err, cause)
+//		werr   = NewWrappedError(err,)
+//		target = errors.New("error")
+//
+// )
+//
+// errors.Is(werr, err)    // returns true
+// errors.Is(werr, cause)  // returns true
+// errors.Is(werr, root)   // return true
+// errors.Is(err, target)  // returns false (err != target)
+// errors.Is(werr, target) // returns true  (err.Error() == target.Error())
+// ferr.Unwrap()           // return nil
+// werr.Unwrap()           // return cause
+// werr.Unwrap().Unwrap()  // return root
 type WrappedError = *k6build.Error
 
 // NewWrappedError return a new Error
@@ -82,7 +111,6 @@ func (b K6Binary) UnmarshalDeps() string {
 	return buffer.String()
 }
 
-
 // Config defines the configuration of the Provider.
 type Config struct {
 	// Platform for the binaries. Defaults to the current platform
@@ -111,8 +139,8 @@ type Config struct {
 	PruneInterval time.Duration
 }
 
-// Provider defines a library for providing custom k6 binaries
-// from a k6build service
+// Provider implements an interface for providing custom k6 binaries
+// from a k6build service.
 type Provider struct {
 	client   *http.Client
 	binDir   string
@@ -217,7 +245,7 @@ func NewProvider(config Config) (*Provider, error) {
 // dependencies and the checksum of the binary.
 //
 // If any error occurs while building, downloading or checking the binary,
-// an error will be returned.
+// an WrappedError will be returned, containing the original error as its cause.
 func (p *Provider) GetBinary(
 	ctx context.Context,
 	deps k6deps.Dependencies,
