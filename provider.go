@@ -82,25 +82,6 @@ func (b K6Binary) UnmarshalDeps() string {
 	return buffer.String()
 }
 
-// Provider defines the interface for providing custom k6 binaries
-// from a k6build service
-type Provider interface {
-	// GetBinary returns a custom k6 binary that satisfies the given dependencies.
-	//
-	// If the k6 version constrains are not specified, "*" is used as default.
-	//
-	// If the binary for the given dependencies does not exist, it will be built
-	// using the configured build service and stored in the cache directory.
-	//
-	// If the binary exists, it will be returned from the cache.
-	//
-	// The returned K6Binary has the path to the custom k6 binary, the list of
-	// dependencies and the checksum of the binary.
-	//
-	// If any error occurs while building, downloading or checking the binary,
-	// an error will be returned.
-	GetBinary(ctx context.Context, deps k6deps.Dependencies) (K6Binary, error)
-}
 
 // Config defines the configuration of the Provider.
 type Config struct {
@@ -130,7 +111,9 @@ type Config struct {
 	PruneInterval time.Duration
 }
 
-type provider struct {
+// Provider defines a library for providing custom k6 binaries
+// from a k6build service
+type Provider struct {
 	client   *http.Client
 	binDir   string
 	buildSrv k6build.BuildService
@@ -142,7 +125,7 @@ type provider struct {
 //
 // Expects the K6_BUILD_SERVICE_URL environment variable to be set
 // with the URL to the k6build service
-func NewDefaultProvider() (Provider, error) {
+func NewDefaultProvider() (*Provider, error) {
 	return NewProvider(Config{})
 }
 
@@ -150,7 +133,7 @@ func NewDefaultProvider() (Provider, error) {
 //
 // If BuildServiceURL is not set, it will use the K6_BUILD_SERVICE_URL environment variable
 // If DownloadProxyURL is not set, it will use the K6_DOWNLOAD_PROXY environment variable
-func NewProvider(config Config) (Provider, error) {
+func NewProvider(config Config) (*Provider, error) {
 	binDir := config.BinDir
 	if binDir == "" {
 		binDir = filepath.Join(os.TempDir(), "k6provider", "cache")
@@ -212,7 +195,7 @@ func NewProvider(config Config) (Provider, error) {
 		pruneInterval = defaultPruneInterval
 	}
 
-	return &provider{
+	return &Provider{
 		client:   httpClient,
 		binDir:   binDir,
 		buildSrv: buildSrv,
@@ -221,7 +204,21 @@ func NewProvider(config Config) (Provider, error) {
 	}, nil
 }
 
-func (p *provider) GetBinary(
+// GetBinary returns a custom k6 binary that satisfies the given dependencies.
+//
+// If the k6 version constrains are not specified, "*" is used as default.
+//
+// If the binary for the given dependencies does not exist, it will be built
+// using the configured build service and stored in the cache directory.
+//
+// If the binary exists, it will be returned from the cache.
+//
+// The returned K6Binary has the path to the custom k6 binary, the list of
+// dependencies and the checksum of the binary.
+//
+// If any error occurs while building, downloading or checking the binary,
+// an error will be returned.
+func (p *Provider) GetBinary(
 	ctx context.Context,
 	deps k6deps.Dependencies,
 ) (K6Binary, error) {
@@ -286,7 +283,7 @@ func (p *provider) GetBinary(
 	}, nil
 }
 
-func (p *provider) download(ctx context.Context, from string, dest io.Writer) error {
+func (p *Provider) download(ctx context.Context, from string, dest io.Writer) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, from, nil)
 	if err != nil {
 		return err
