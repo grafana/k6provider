@@ -75,16 +75,16 @@ var (
 // ferr.Unwrap()           // return nil
 // werr.Unwrap()           // return cause
 // werr.Unwrap().Unwrap()  // return root
-type WrappedError = *k6build.Error
+type WrappedError = *k6build.WrappedError
 
 // NewWrappedError return a new Error
 func NewWrappedError(err error, reason error) WrappedError {
-	return k6build.NewError(err, reason)
+	return k6build.NewWrappedError(err, reason)
 }
 
 // AsWrappedError returns and error as a WrapperError, if possible
 func AsWrappedError(err error) (WrappedError, bool) {
-	buildErr := &k6build.Error{}
+	buildErr := &k6build.WrappedError{}
 	if !errors.As(err, &buildErr) {
 		return nil, false
 	}
