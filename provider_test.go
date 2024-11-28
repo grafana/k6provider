@@ -11,10 +11,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	fileCache "github.com/grafana/k6build/pkg/cache/file"
-	cachesrv "github.com/grafana/k6build/pkg/cache/server"
 	"github.com/grafana/k6build/pkg/local"
 	"github.com/grafana/k6build/pkg/server"
+	filestore "github.com/grafana/k6build/pkg/store/file"
+	storesrv "github.com/grafana/k6build/pkg/store/server"
 	"github.com/grafana/k6deps"
 )
 
@@ -31,26 +31,26 @@ func newAuthorizationProxy(buildSrv string, header string, authorization string)
 }
 
 func Test_Provider(t *testing.T) { //nolint:paralleltest
-	// 1. create local file cache
-	cache, err := fileCache.NewFileCache(filepath.Join(t.TempDir(), "cache"))
+	// 1. create local file store
+	store, err := filestore.NewFileStore(filepath.Join(t.TempDir(), "store"))
 	if err != nil {
-		t.Fatalf("cache setup %v", err)
+		t.Fatalf("store setup %v", err)
 	}
-	cacheConfig := cachesrv.CacheServerConfig{
-		Cache: cache,
+	storeConfig := storesrv.StoreServerConfig{
+		Store: store,
 	}
 
-	// 2. start a cache server
-	cacheSrv := httptest.NewServer(cachesrv.NewCacheServer(cacheConfig))
+	// 2. start an object store server
+	storeSrv := httptest.NewServer(storesrv.NewStoreServer(storeConfig))
 	buildConfig := local.BuildServiceConfig{
 		Catalog:   "testdata/catalog.json",
 		CopyGoEnv: true,
-		CacheURL:  cacheSrv.URL,
+		StoreURL:  storeSrv.URL,
 	}
 
 	// 3. start a download proxy
-	cacheURL, _ := url.Parse(cacheSrv.URL)
-	proxyHandler := httputil.NewSingleHostReverseProxy(cacheURL)
+	storeURL, _ := url.Parse(storeSrv.URL)
+	proxyHandler := httputil.NewSingleHostReverseProxy(storeURL)
 	proxy := httptest.NewServer(proxyHandler)
 	defer proxy.Close()
 
