@@ -97,11 +97,11 @@ func TestPruner(t *testing.T) {
 				_ = os.Chmod(filepath.Join(tmpDir, "binary-4"), 0o750)
 			})
 
-			pruner := newPruner(tmpDir, tc.hwm, time.Hour)
+			pruner := NewPruner(tmpDir, tc.hwm, time.Hour)
 			// force time of last prune
 			pruner.lastPrune = tc.lastPrune
 
-			err := pruner.prune()
+			err := pruner.Prune()
 
 			if !errors.Is(err, tc.expectErr) {
 				t.Fatalf("expected %v got %v", tc.expectErr, err)

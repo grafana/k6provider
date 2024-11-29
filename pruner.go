@@ -10,9 +10,9 @@ import (
 	"time"
 )
 
-// pruner prunes binaries suing a LRU policy to enforce a limit
-// defined in the hwm parameter.
-type pruner struct {
+// Pruner prunes binaries suing a LRU policy to enforce a limit
+// defined in a high-water-mark.
+type Pruner struct {
 	pruneLock     sync.Mutex
 	dirLock       *dirLock
 	dir           string
@@ -27,8 +27,10 @@ type pruneTarget struct {
 	timestamp time.Time
 }
 
-func newPruner(dir string, hwm int64, pruneInterval time.Duration) *pruner {
-	return &pruner{
+// NewPruner creates a [Pruner] given its high-water-mark limit, and the
+// prune interval
+func NewPruner(dir string, hwm int64, pruneInterval time.Duration) *Pruner {
+	return &Pruner{
 		dirLock:       newFileLock(dir),
 		dir:           dir,
 		hwm:           hwm,
@@ -36,8 +38,8 @@ func newPruner(dir string, hwm int64, pruneInterval time.Duration) *pruner {
 	}
 }
 
-// update access time because reading the file not always updates it
-func (p *pruner) touch(binPath string) {
+// Touch update access time because reading the file not always updates it
+func (p *Pruner) Touch(binPath string) {
 	if p.hwm > 0 {
 		p.pruneLock.Lock()
 		defer p.pruneLock.Unlock()
@@ -45,8 +47,8 @@ func (p *pruner) touch(binPath string) {
 	}
 }
 
-// prune the cache of least recently used files
-func (p *pruner) prune() error {
+// Prune the cache of least recently used files
+func (p *Pruner) Prune() error {
 	if p.hwm == 0 {
 		return nil
 	}
@@ -66,7 +68,7 @@ func (p *pruner) prune() error {
 	err := p.dirLock.lock()
 	if err != nil {
 		// is locked, another pruner must be running (maybe another process)
-		if errors.Is(err, ErrLocked) {
+		if errors.Is(err, errLocked) {
 			return nil
 		}
 		return fmt.Errorf("%w: %w", ErrPruningCache, err)
