@@ -55,26 +55,24 @@ var (
 // based on the result of the Error() method, overcoming a limitation of the error
 // implemented in the stdlib.
 //
-// Example:
-// var (
+//  Example:
+//  var (
+//      err    = errors.New("error")
+//      root   = errors.New("root cause")
+//      cause  = NewWrappedError(cause, root)
+//      ferr   = fmt.Errorf("%w %w", err, cause)
+//      werr   = NewWrappedError(err,)
+//      target = errors.New("error")
+//  )
 //
-//		err    = errors.New("error")
-//		root   = errors.New("root cause")
-//		cause  = NewWrappedError(cause, root)
-//	        ferr   = fmt.Errorf("%w %w", err, cause)
-//		werr   = NewWrappedError(err,)
-//		target = errors.New("error")
-//
-// )
-//
-// errors.Is(werr, err)    // returns true
-// errors.Is(werr, cause)  // returns true
-// errors.Is(werr, root)   // return true
-// errors.Is(err, target)  // returns false (err != target)
-// errors.Is(werr, target) // returns true  (err.Error() == target.Error())
-// ferr.Unwrap()           // return nil
-// werr.Unwrap()           // return cause
-// werr.Unwrap().Unwrap()  // return root
+//  errors.Is(werr, err)    // returns true
+//  errors.Is(werr, cause)  // returns true
+//  errors.Is(werr, root)   // return true
+//  errors.Is(err, target)  // returns false (err != target)
+//  errors.Is(werr, target) // returns true  (err.Error() == target.Error())
+//  ferr.Unwrap()           // return nil
+//  werr.Unwrap()           // return cause
+//  werr.Unwrap().Unwrap()  // return root
 type WrappedError = *k6build.WrappedError
 
 // NewWrappedError return a new Error
