@@ -55,27 +55,27 @@ var (
 // based on the result of the Error() method, overcoming a limitation of the error
 // implemented in the stdlib.
 //
-//  Example:
-//  var (
-//      err    = errors.New("error")
-//      root   = errors.New("root cause")
-//      cause  = NewWrappedError(cause, root)
-//      ferr   = fmt.Errorf("%w %w", err, cause)
-//      werr   = NewWrappedError(err,)
-//      target = errors.New("error")
-//  )
+//	Example:
+//	var (
+//	    err    = errors.New("error")
+//	    root   = errors.New("root cause")
+//	    cause  = NewWrappedError(cause, root)
+//	    ferr   = fmt.Errorf("%w %w", err, cause)
+//	    werr   = NewWrappedError(err,)
+//	    target = errors.New("error")
+//	)
 //
-//  errors.Is(werr, err)    // returns true
-//  errors.Is(werr, cause)  // returns true
-//  errors.Is(werr, root)   // return true
-//  errors.Is(err, target)  // returns false (err != target)
-//  errors.Is(werr, target) // returns true  (err.Error() == target.Error())
-//  ferr.Unwrap()           // return nil
-//  werr.Unwrap()           // return cause
-//  werr.Unwrap().Unwrap()  // return root
+//	errors.Is(werr, err)    // returns true
+//	errors.Is(werr, cause)  // returns true
+//	errors.Is(werr, root)   // return true
+//	errors.Is(err, target)  // returns false (err != target)
+//	errors.Is(werr, target) // returns true  (err.Error() == target.Error())
+//	ferr.Unwrap()           // return nil
+//	werr.Unwrap()           // return cause
+//	werr.Unwrap().Unwrap()  // return root
 type WrappedError = *k6build.WrappedError
 
-// NewWrappedError return a new [WrappedError] from an error and its reason 
+// NewWrappedError return a new [WrappedError] from an error and its reason
 func NewWrappedError(err error, reason error) WrappedError {
 	return k6build.NewWrappedError(err, reason)
 }
@@ -146,7 +146,7 @@ type Provider struct {
 	binDir   string
 	buildSrv k6build.BuildService
 	platform string
-	pruner   *pruner
+	pruner   *Pruner
 }
 
 // NewDefaultProvider returns a Provider with default settings
@@ -228,7 +228,7 @@ func NewProvider(config Config) (*Provider, error) {
 		binDir:   binDir,
 		buildSrv: buildSrv,
 		platform: platform,
-		pruner:   newPruner(binDir, config.HighWaterMark, pruneInterval),
+		pruner:   NewPruner(binDir, config.HighWaterMark, pruneInterval),
 	}, nil
 }
 
@@ -263,7 +263,7 @@ func (p *Provider) GetBinary(
 
 	// binary already exists
 	if err == nil {
-		go p.pruner.touch(binPath)
+		go p.pruner.Touch(binPath)
 
 		return K6Binary{
 			Path:         binPath,
@@ -302,7 +302,7 @@ func (p *Provider) GetBinary(
 
 	// start pruning in background
 	// TODO: handle case the calling process is cancelled
-	go p.pruner.prune() //nolint:errcheck
+	go p.pruner.Prune() //nolint:errcheck
 
 	return K6Binary{
 		Path:         binPath,
