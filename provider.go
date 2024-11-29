@@ -75,12 +75,12 @@ var (
 //  werr.Unwrap().Unwrap()  // return root
 type WrappedError = *k6build.WrappedError
 
-// NewWrappedError return a new Error
+// NewWrappedError return a new [WrappedError] from an error and its reason 
 func NewWrappedError(err error, reason error) WrappedError {
 	return k6build.NewWrappedError(err, reason)
 }
 
-// AsWrappedError returns and error as a WrapperError, if possible
+// AsWrappedError returns and error as a [WrapperError] and a boolean indicating if it was possible
 func AsWrappedError(err error) (WrappedError, bool) {
 	buildErr := &k6build.WrappedError{}
 	if !errors.As(err, &buildErr) {
@@ -138,7 +138,9 @@ type Config struct {
 }
 
 // Provider implements an interface for providing custom k6 binaries
-// from a k6build service.
+// from a [k6build] service.
+//
+// [k6build]: https://github.com/grafana/k6build
 type Provider struct {
 	client   *http.Client
 	binDir   string
@@ -155,7 +157,7 @@ func NewDefaultProvider() (*Provider, error) {
 	return NewProvider(Config{})
 }
 
-// NewProvider returns a Provider with the given Options
+// NewProvider returns a [Provider] with the given Options
 //
 // If BuildServiceURL is not set, it will use the K6_BUILD_SERVICE_URL environment variable
 // If DownloadProxyURL is not set, it will use the K6_DOWNLOAD_PROXY environment variable
@@ -230,7 +232,7 @@ func NewProvider(config Config) (*Provider, error) {
 	}, nil
 }
 
-// GetBinary returns a custom k6 binary that satisfies the given dependencies.
+// GetBinary returns a custom k6 binary that satisfies the given a set of dependencies.
 //
 // If the k6 version constrains are not specified, "*" is used as default.
 //
@@ -243,7 +245,7 @@ func NewProvider(config Config) (*Provider, error) {
 // dependencies and the checksum of the binary.
 //
 // If any error occurs while building, downloading or checking the binary,
-// an WrappedError will be returned, containing the original error as its cause.
+// an [WrappedError] will be returned, containing the original error as its cause.
 func (p *Provider) GetBinary(
 	ctx context.Context,
 	deps k6deps.Dependencies,
