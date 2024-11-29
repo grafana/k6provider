@@ -9,12 +9,12 @@ import (
 )
 
 var (
-	// ErrLocked is returned when the file is already locked
-	ErrLocked = errors.New("file already locked")
-	// ErrLockFailed is returned when there's an error accessing the lock file
-	ErrLockFailed = errors.New("failed to lock file")
-	// ErrUnLockFailed is returned when there's an error unlocking the file
-	ErrUnLockFailed = errors.New("failed to lock file")
+	// errLocked is returned when the file is already locked
+	errLocked = errors.New("file already locked")
+	// errLockFailed is returned when there's an error accessing the lock file
+	errLockFailed = errors.New("failed to lock file")
+	// errUnLockFailed is returned when there's an error unlocking the file
+	errUnLockFailed = errors.New("failed to lock file")
 )
 
 // A dirLock prevents concurrent access to a directory.
@@ -49,7 +49,7 @@ func (m *dirLock) lock() error {
 
 	fd, err := syscall.Open(m.lockFile, syscall.O_RDWR|syscall.O_CREAT, 0o600)
 	if err != nil {
-		return fmt.Errorf("%w %w", ErrLockFailed, err)
+		return fmt.Errorf("%w %w", errLockFailed, err)
 	}
 	err = syscall.Flock(fd, syscall.LOCK_EX|syscall.LOCK_NB)
 	if err == nil {
@@ -58,10 +58,10 @@ func (m *dirLock) lock() error {
 	}
 
 	if errors.Is(err, syscall.EWOULDBLOCK) {
-		return ErrLocked
+		return errLocked
 	}
 
-	return fmt.Errorf("%w %w", ErrLockFailed, err)
+	return fmt.Errorf("%w %w", errLockFailed, err)
 }
 
 func (m *dirLock) unlock() error {
@@ -80,7 +80,7 @@ func (m *dirLock) unlock() error {
 
 	err := syscall.Flock(m.fd, syscall.LOCK_UN)
 	if err != nil {
-		return fmt.Errorf("%w %w", ErrUnLockFailed, err)
+		return fmt.Errorf("%w %w", errUnLockFailed, err)
 	}
 	return nil
 }

@@ -68,7 +68,7 @@ func (p *Pruner) Prune() error {
 	err := p.dirLock.lock()
 	if err != nil {
 		// is locked, another pruner must be running (maybe another process)
-		if errors.Is(err, ErrLocked) {
+		if errors.Is(err, errLocked) {
 			return nil
 		}
 		return fmt.Errorf("%w: %w", ErrPruningCache, err)

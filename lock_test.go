@@ -24,7 +24,7 @@ func TestLock(t *testing.T) {
 	}
 
 	// another lock should return ErrLocked
-	if err := newFileLock(dir).lock(); !errors.Is(err, ErrLocked) {
+	if err := newFileLock(dir).lock(); !errors.Is(err, errLocked) {
 		t.Fatalf("unexpected %v", err)
 	}
 
@@ -49,12 +49,12 @@ func TestLock(t *testing.T) {
 	}
 
 	// retrying original lock should return ErrLocked
-	if err := l.lock(); !errors.Is(err, ErrLocked) {
+	if err := l.lock(); !errors.Is(err, errLocked) {
 		t.Fatalf("unexpected %v", err)
 	}
 
 	// trying to lock a non-existing dir should fails
-	if err := newFileLock("/path/to/non/existing/dir").lock(); !errors.Is(err, ErrLockFailed) {
+	if err := newFileLock("/path/to/non/existing/dir").lock(); !errors.Is(err, errLockFailed) {
 		t.Fatalf("unexpected %v", err)
 	}
 }
