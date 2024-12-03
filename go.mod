@@ -4,7 +4,7 @@ go 1.22.4
 
 require (
 	github.com/grafana/k6build v0.4.0
-	github.com/grafana/k6deps v0.1.7
+	github.com/grafana/k6deps v0.1.8
 )
 
 require (
