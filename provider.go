@@ -35,10 +35,10 @@ var (
 	ErrBuild = errors.New("building binary")
 	// ErrConfig is produced by invalid configuration
 	ErrConfig = errors.New("invalid configuration")
-	// ErrDependency is produced by invalid dependencies
-	ErrDependency = errors.New("invalid dependency")
 	// ErrDownload indicates an error downloading binary
 	ErrDownload = errors.New("downloading binary")
+	// ErrInvalidParameters is produced by invalid build parameters
+	ErrInvalidParameters = errors.New("invalid build parameters")
 	// ErrPruningCache indicates an error pruning the binary cache
 	ErrPruningCache = errors.New("pruning cache")
 )
@@ -245,7 +245,8 @@ func NewProvider(config Config) (*Provider, error) {
 // dependencies and the checksum of the binary.
 //
 // If any error occurs while building, downloading or checking the binary,
-// an [WrappedError] will be returned, containing the original error as its cause.
+// an [WrappedError] will be returned. This error will be one of the errors
+// defined in the k6provider packaged. Using errors.Unwrap will return its cause.
 func (p *Provider) GetBinary(
 	ctx context.Context,
 	deps k6deps.Dependencies,
@@ -254,7 +255,17 @@ func (p *Provider) GetBinary(
 
 	artifact, err := p.buildSrv.Build(ctx, p.platform, k6Constrains, buildDeps)
 	if err != nil {
-		return K6Binary{}, NewWrappedError(ErrBuild, err)
+		if !errors.Is(err, ErrInvalidParameters) {
+			return K6Binary{}, NewWrappedError(ErrBuild, err)
+		}
+
+		// it is an invalid build parameters, we are interested in the
+		// root cause
+		cause := errors.Unwrap(err)
+		for errors.Unwrap(cause) != nil {
+			cause = errors.Unwrap(cause)
+		}
+		return K6Binary{}, NewWrappedError(ErrInvalidParameters, cause)
 	}
 
 	artifactDir := filepath.Join(p.binDir, artifact.ID)
