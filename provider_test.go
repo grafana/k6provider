@@ -11,10 +11,12 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/grafana/k6build/pkg/local"
+	"github.com/grafana/k6build/pkg/builder"
 	"github.com/grafana/k6build/pkg/server"
+	"github.com/grafana/k6build/pkg/store/client"
 	filestore "github.com/grafana/k6build/pkg/store/file"
 	storesrv "github.com/grafana/k6build/pkg/store/server"
+	"github.com/grafana/k6catalog"
 	"github.com/grafana/k6deps"
 )
 
@@ -42,11 +44,6 @@ func Test_Provider(t *testing.T) { //nolint:paralleltest
 
 	// 2. start an object store server
 	storeSrv := httptest.NewServer(storesrv.NewStoreServer(storeConfig))
-	buildConfig := local.BuildServiceConfig{
-		Catalog:   "testdata/catalog.json",
-		CopyGoEnv: true,
-		StoreURL:  storeSrv.URL,
-	}
 
 	// 3. start a download proxy
 	storeURL, _ := url.Parse(storeSrv.URL)
@@ -55,7 +52,24 @@ func Test_Provider(t *testing.T) { //nolint:paralleltest
 	defer proxy.Close()
 
 	// 4. configure a local builder
-	builder, err := local.NewBuildService(context.TODO(), buildConfig)
+	storeClient, err := client.NewStoreClient(client.StoreClientConfig{Server: storeSrv.URL})
+	if err != nil {
+		t.Fatalf("store client setup %v", err)
+	}
+	catalog, err := k6catalog.NewCatalog(context.TODO(), "testdata/catalog.json")
+	if err != nil {
+		t.Fatalf("build server setup %v", err)
+	}
+	buildConfig := builder.Config{
+		Opts: builder.Opts{
+			GoOpts: builder.GoOpts{
+				CopyGoEnv: true,
+			},
+		},
+		Catalog: catalog,
+		Store:   storeClient,
+	}
+	builder, err := builder.New(context.TODO(), buildConfig)
 	if err != nil {
 		t.Fatalf("setup %v", err)
 	}
