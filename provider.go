@@ -232,6 +232,33 @@ func NewProvider(config Config) (*Provider, error) {
 	}, nil
 }
 
+// GetArtifact returns a custom k6 artifact that satisfies the given a set of dependencies.
+// from the configured build service.
+// it's useful if you want to get the artifact without downloading the binary.
+func (p *Provider) GetArtifact(
+	ctx context.Context,
+	deps k6deps.Dependencies,
+) (k6build.Artifact, error) {
+	k6Constrains, buildDeps := buildDeps(deps)
+
+	artifact, err := p.buildSrv.Build(ctx, p.platform, k6Constrains, buildDeps)
+	if err != nil {
+		if !errors.Is(err, ErrInvalidParameters) {
+			return k6build.Artifact{}, NewWrappedError(ErrBuild, err)
+		}
+
+		// it is an invalid build parameters, we are interested in the
+		// root cause
+		cause := errors.Unwrap(err)
+		for errors.Unwrap(cause) != nil {
+			cause = errors.Unwrap(cause)
+		}
+		return k6build.Artifact{}, NewWrappedError(ErrInvalidParameters, cause)
+	}
+
+	return artifact, nil
+}
+
 // GetBinary returns a custom k6 binary that satisfies the given a set of dependencies.
 //
 // If the k6 version constrains are not specified, "*" is used as default.
@@ -251,21 +278,9 @@ func (p *Provider) GetBinary(
 	ctx context.Context,
 	deps k6deps.Dependencies,
 ) (K6Binary, error) {
-	k6Constrains, buildDeps := buildDeps(deps)
-
-	artifact, err := p.buildSrv.Build(ctx, p.platform, k6Constrains, buildDeps)
+	artifact, err := p.GetArtifact(ctx, deps)
 	if err != nil {
-		if !errors.Is(err, ErrInvalidParameters) {
-			return K6Binary{}, NewWrappedError(ErrBuild, err)
-		}
-
-		// it is an invalid build parameters, we are interested in the
-		// root cause
-		cause := errors.Unwrap(err)
-		for errors.Unwrap(cause) != nil {
-			cause = errors.Unwrap(cause)
-		}
-		return K6Binary{}, NewWrappedError(ErrInvalidParameters, cause)
+		return K6Binary{}, err
 	}
 
 	artifactDir := filepath.Join(p.binDir, artifact.ID)
