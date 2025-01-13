@@ -232,19 +232,33 @@ func NewProvider(config Config) (*Provider, error) {
 	}, nil
 }
 
+// Artifact defines the artifact returned by the build service
+type Artifact struct {
+	// Unique id. Binaries satisfying the same set of dependencies have the same ID
+	ID string
+	// URL to fetch the artifact's binary
+	URL string
+	// List of dependencies that the artifact provides
+	Dependencies map[string]string
+	// platform
+	Platform string
+	// binary checksum (sha256)
+	Checksum string
+}
+
 // GetArtifact returns a custom k6 artifact that satisfies the given a set of dependencies.
 // from the configured build service.
 // it's useful if you want to get the artifact without downloading the binary.
 func (p *Provider) GetArtifact(
 	ctx context.Context,
 	deps k6deps.Dependencies,
-) (k6build.Artifact, error) {
+) (Artifact, error) {
 	k6Constrains, buildDeps := buildDeps(deps)
 
 	artifact, err := p.buildSrv.Build(ctx, p.platform, k6Constrains, buildDeps)
 	if err != nil {
 		if !errors.Is(err, ErrInvalidParameters) {
-			return k6build.Artifact{}, NewWrappedError(ErrBuild, err)
+			return Artifact{}, NewWrappedError(ErrBuild, err)
 		}
 
 		// it is an invalid build parameters, we are interested in the
@@ -253,10 +267,16 @@ func (p *Provider) GetArtifact(
 		for errors.Unwrap(cause) != nil {
 			cause = errors.Unwrap(cause)
 		}
-		return k6build.Artifact{}, NewWrappedError(ErrInvalidParameters, cause)
+		return Artifact{}, NewWrappedError(ErrInvalidParameters, cause)
 	}
 
-	return artifact, nil
+	return Artifact{
+		ID:           artifact.ID,
+		URL:          artifact.URL,
+		Dependencies: artifact.Dependencies,
+		Platform:     artifact.Platform,
+		Checksum:     artifact.Checksum,
+	}, nil
 }
 
 // GetBinary returns a custom k6 binary that satisfies the given a set of dependencies.
