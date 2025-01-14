@@ -12,11 +12,11 @@ import (
 	"testing"
 
 	"github.com/grafana/k6build/pkg/builder"
+	"github.com/grafana/k6build/pkg/catalog"
 	"github.com/grafana/k6build/pkg/server"
 	"github.com/grafana/k6build/pkg/store/client"
 	filestore "github.com/grafana/k6build/pkg/store/file"
 	storesrv "github.com/grafana/k6build/pkg/store/server"
-	"github.com/grafana/k6catalog"
 	"github.com/grafana/k6deps"
 )
 
@@ -56,7 +56,7 @@ func Test_Provider(t *testing.T) { //nolint:paralleltest
 	if err != nil {
 		t.Fatalf("store client setup %v", err)
 	}
-	catalog, err := k6catalog.NewCatalog(context.TODO(), "testdata/catalog.json")
+	catalog, err := catalog.NewCatalog(context.TODO(), "testdata/catalog.json")
 	if err != nil {
 		t.Fatalf("build server setup %v", err)
 	}
