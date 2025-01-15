@@ -4,8 +4,8 @@ github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/evanw/esbuild v0.24.0 h1:GZ78naTLp7FKr+K7eNuM/SLs5maeiHYRPsTg6kmdsSE=
 github.com/evanw/esbuild v0.24.0/go.mod h1:D2vIQZqV/vIf/VRHtViaUtViZmG7o+kKmlBfVQuRi48=
-github.com/grafana/k6build v0.5.1 h1:r2cjmCTKe3F97xP+qg/PrGREXG8trk0PNR7xAH2sh8o=
-github.com/grafana/k6build v0.5.1/go.mod h1:gqaAmSzsHRYOhGM9sXD06H82S0aCPOZcd0rlkKRO8bQ=
+github.com/grafana/k6build v0.5.2 h1:BhR7n2+h9TVgAGlYswW8IKutX0aFu4OhaWzCOpqQ2M8=
+github.com/grafana/k6build v0.5.2/go.mod h1:gqaAmSzsHRYOhGM9sXD06H82S0aCPOZcd0rlkKRO8bQ=
 github.com/grafana/k6deps v0.1.8 h1:8ZrkAQR8aWQlYPoRlEqbWVHghhGpSHtOQ42fBL++cmo=
 github.com/grafana/k6deps v0.1.8/go.mod h1:8szhtnOzNmxwOzJ2diu+wPc9J2Vxvq69Lcyh2WvdVA8=
 github.com/grafana/k6foundry v0.3.0 h1:C+6dPbsOv7Uq4hEhBFNuYqmTdE9jQ0VqhXqBDtMkVTE=
