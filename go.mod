@@ -3,7 +3,7 @@ module github.com/grafana/k6provider
 go 1.22.4
 
 require (
-	github.com/grafana/k6build v0.5.1
+	github.com/grafana/k6build v0.5.2
 	github.com/grafana/k6deps v0.1.8
 )
 
