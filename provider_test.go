@@ -32,6 +32,14 @@ func newAuthorizationProxy(buildSrv string, header string, authorization string)
 	}
 }
 
+// Pass through requests
+func newTransparentProxy(upstream string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		url, _ := url.Parse(upstream)
+		httputil.NewSingleHostReverseProxy(url).ServeHTTP(w, r)
+	}
+}
+
 func Test_Provider(t *testing.T) { //nolint:paralleltest
 	// 1. create local file store
 	store, err := filestore.NewFileStore(filepath.Join(t.TempDir(), "store"))
@@ -45,13 +53,7 @@ func Test_Provider(t *testing.T) { //nolint:paralleltest
 	// 2. start an object store server
 	storeSrv := httptest.NewServer(storesrv.NewStoreServer(storeConfig))
 
-	// 3. start a download proxy
-	storeURL, _ := url.Parse(storeSrv.URL)
-	proxyHandler := httputil.NewSingleHostReverseProxy(storeURL)
-	proxy := httptest.NewServer(proxyHandler)
-	defer proxy.Close()
-
-	// 4. configure a local builder
+	// 3. configure a local builder
 	storeClient, err := client.NewStoreClient(client.StoreClientConfig{Server: storeSrv.URL})
 	if err != nil {
 		t.Fatalf("store client setup %v", err)
@@ -81,12 +83,13 @@ func Test_Provider(t *testing.T) { //nolint:paralleltest
 	buildSrv := httptest.NewServer(server.NewAPIServer(srvConfig))
 
 	testCases := []struct {
-		title      string
-		opts       *k6deps.Options
-		buildProxy http.HandlerFunc
-		config     Config
-		expectErr  error
-		expect     string
+		title         string
+		opts          *k6deps.Options
+		buildProxy    http.HandlerFunc
+		downloadProxy http.HandlerFunc
+		config        Config
+		expectErr     error
+		expect        string
 	}{
 		{
 			title:  "build k6 from env variable",
@@ -94,25 +97,6 @@ func Test_Provider(t *testing.T) { //nolint:paralleltest
 			opts: &k6deps.Options{
 				Env: k6deps.Source{Name: "K6_DEPS", Contents: []byte("k6=v0.50.0")},
 			},
-		},
-		{
-			title: "test download using proxy",
-			config: Config{
-				DownloadProxyURL: proxy.URL,
-			},
-			opts: &k6deps.Options{
-				Env: k6deps.Source{Name: "K6_DEPS", Contents: []byte("k6=v0.50.0")},
-			},
-		},
-		{
-			title: "test proxy unavailable",
-			config: Config{
-				DownloadProxyURL: "http://127.0.0.1:12345",
-			},
-			opts: &k6deps.Options{
-				Env: k6deps.Source{Name: "K6_DEPS", Contents: []byte("k6=v0.50.0")},
-			},
-			expectErr: ErrDownload,
 		},
 		{
 			title: "test authentication using bearer token",
@@ -149,6 +133,52 @@ func Test_Provider(t *testing.T) { //nolint:paralleltest
 			},
 			expectErr: ErrBuild,
 		},
+		{
+			title:         "test download using proxy",
+			downloadProxy: newTransparentProxy(storeSrv.URL),
+			opts: &k6deps.Options{
+				Env: k6deps.Source{Name: "K6_DEPS", Contents: []byte("k6=v0.50.0")},
+			},
+		},
+		{
+			title: "test download proxy unavailable",
+			config: Config{
+				DownloadConfig: DownloadConfig{
+					ProxyURL: "http://127.0.0.1:12345",
+				},
+			},
+			opts: &k6deps.Options{
+				Env: k6deps.Source{Name: "K6_DEPS", Contents: []byte("k6=v0.50.0")},
+			},
+			expectErr: ErrDownload,
+		},
+		{
+			title: "test download authentication using bearer token",
+			config: Config{
+				BuildServiceAuth: "token",
+				DownloadConfig: DownloadConfig{
+					Authorization: "token",
+				},
+			},
+			downloadProxy: newAuthorizationProxy(storeSrv.URL, "Authorization", "Bearer token"),
+			opts: &k6deps.Options{
+				Env: k6deps.Source{Name: "K6_DEPS", Contents: []byte("k6=v0.50.0")},
+			},
+			expectErr: nil,
+		},
+		{
+			title: "test download authentication failed (missing bearer token)",
+			config: Config{
+				DownloadConfig: DownloadConfig{
+					Authorization: "",
+				},
+			},
+			downloadProxy: newAuthorizationProxy(buildSrv.URL, "Authorization", "Bearer token"),
+			opts: &k6deps.Options{
+				Env: k6deps.Source{Name: "K6_DEPS", Contents: []byte("k6=v0.50.0")},
+			},
+			expectErr: ErrDownload,
+		},
 	}
 
 	for _, tc := range testCases { //nolint:paralleltest
@@ -162,9 +192,21 @@ func Test_Provider(t *testing.T) { //nolint:paralleltest
 				testSrvURL = testSrv.URL
 			}
 
+			// if there's a download proxy, we use it
+			testStoreProxy := ""
+			if tc.downloadProxy != nil {
+				downloadProxy := httptest.NewServer(tc.downloadProxy)
+				defer downloadProxy.Close()
+				testStoreProxy = downloadProxy.URL
+			}
+
 			config := tc.config
-			config.BuildServiceURL = testSrvURL
 			config.BinDir = filepath.Join(t.TempDir(), "provider")
+			config.BuildServiceURL = testSrvURL
+			// override download proxy if not set in the test. This is needed to test wrong proxy URL
+			if config.DownloadConfig.ProxyURL == "" {
+				config.DownloadConfig.ProxyURL = testStoreProxy
+			}
 
 			provider, err := NewProvider(config)
 			if err != nil {

@@ -7,9 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -25,7 +23,6 @@ const (
 	k6Binary             = "k6"
 	k6Module             = "k6"
 	defaultPruneInterval = time.Hour
-	defaultAuthType      = "Bearer"
 )
 
 var (
@@ -129,12 +126,12 @@ type Config struct {
 	BuildServiceAuth string
 	// BuildServiceHeaders HTTP headers for the k6 build service
 	BuildServiceHeaders map[string]string
-	// DownloadProxyURL URL to proxy for downloading binaries
-	DownloadProxyURL string
 	// HighWaterMark is the upper limit of cache size to trigger a prune
 	HighWaterMark int64
 	// PruneInterval minimum time between prune attempts. Defaults to 1h
 	PruneInterval time.Duration
+	// Download configuration
+	DownloadConfig DownloadConfig
 }
 
 // Provider implements an interface for providing custom k6 binaries
@@ -142,11 +139,12 @@ type Config struct {
 //
 // [k6build]: https://github.com/grafana/k6build
 type Provider struct {
-	client   *http.Client
-	binDir   string
-	buildSrv k6build.BuildService
-	platform string
-	pruner   *Pruner
+	client     *http.Client
+	downloader *downloader
+	binDir     string
+	buildSrv   k6build.BuildService
+	platform   string
+	pruner     *Pruner
 }
 
 // NewDefaultProvider returns a Provider with default settings
@@ -169,20 +167,6 @@ func NewProvider(config Config) (*Provider, error) {
 
 	httpClient := http.DefaultClient
 
-	proxyURL := config.DownloadProxyURL
-	if proxyURL == "" {
-		proxyURL = os.Getenv("K6_DOWNLOAD_PROXY")
-	}
-	if proxyURL != "" {
-		parsed, err := url.Parse(proxyURL)
-		if err != nil {
-			return nil, NewWrappedError(ErrConfig, err)
-		}
-		proxy := http.ProxyURL(parsed)
-		transport := &http.Transport{Proxy: proxy}
-		httpClient = &http.Client{Transport: transport}
-	}
-
 	buildSrvURL := config.BuildServiceURL
 	if buildSrvURL == "" {
 		buildSrvURL = os.Getenv("K6_BUILD_SERVICE_URL")
@@ -196,16 +180,11 @@ func NewProvider(config Config) (*Provider, error) {
 		buildSrvAuth = os.Getenv("K6_BUILD_SERVICE_AUTH")
 	}
 
-	buildSrvAuthType := config.BuildServiceAuthType
-	if buildSrvAuthType == "" && buildSrvAuth != "" {
-		buildSrvAuthType = "Bearer"
-	}
-
 	buildSrv, err := client.NewBuildServiceClient(
 		client.BuildServiceClientConfig{
 			URL:               buildSrvURL,
 			Authorization:     buildSrvAuth,
-			AuthorizationType: buildSrvAuthType,
+			AuthorizationType: config.BuildServiceAuthType,
 			Headers:           config.BuildServiceHeaders,
 		},
 	)
@@ -223,12 +202,18 @@ func NewProvider(config Config) (*Provider, error) {
 		pruneInterval = defaultPruneInterval
 	}
 
+	downloader, err := newDownloader(config.DownloadConfig)
+	if err != nil {
+		return nil, NewWrappedError(ErrConfig, err)
+	}
+
 	return &Provider{
-		client:   httpClient,
-		binDir:   binDir,
-		buildSrv: buildSrv,
-		platform: platform,
-		pruner:   NewPruner(binDir, config.HighWaterMark, pruneInterval),
+		client:     httpClient,
+		downloader: downloader,
+		binDir:     binDir,
+		buildSrv:   buildSrv,
+		platform:   platform,
+		pruner:     NewPruner(binDir, config.HighWaterMark, pruneInterval),
 	}, nil
 }
 
@@ -338,7 +323,7 @@ func (p *Provider) GetBinary(
 		return K6Binary{}, NewWrappedError(ErrBinary, err)
 	}
 
-	err = p.download(ctx, artifact.URL, target)
+	err = p.downloader.download(ctx, artifact.URL, target)
 	if err != nil {
 		_ = os.RemoveAll(artifactDir)
 		return K6Binary{}, NewWrappedError(ErrDownload, err)
@@ -355,28 +340,6 @@ func (p *Provider) GetBinary(
 		Dependencies: artifact.Dependencies,
 		Checksum:     artifact.Checksum,
 	}, nil
-}
-
-func (p *Provider) download(ctx context.Context, from string, dest io.Writer) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, from, nil)
-	if err != nil {
-		return err
-	}
-
-	resp, err := p.client.Do(req)
-	if err != nil {
-		return err
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("status %s", resp.Status)
-	}
-
-	defer resp.Body.Close() //nolint:errcheck
-
-	_, err = io.Copy(dest, resp.Body)
-
-	return err
 }
 
 // buildDeps takes a set of k6 dependencies and returns a string representing
