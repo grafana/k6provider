@@ -51,7 +51,11 @@ func Test_Provider(t *testing.T) { //nolint:paralleltest
 	}
 
 	// 2. start an object store server
-	storeSrv := httptest.NewServer(storesrv.NewStoreServer(storeConfig))
+	storeHandler, err := storesrv.NewStoreServer(storeConfig)
+	if err != nil {
+		t.Fatalf("store setup %v", err)
+	}
+	storeSrv := httptest.NewServer(storeHandler)
 
 	// 3. configure a local builder
 	storeClient, err := client.NewStoreClient(client.StoreClientConfig{Server: storeSrv.URL})
