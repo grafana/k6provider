@@ -3,6 +3,7 @@ package k6provider
 import (
 	"context"
 	"errors"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
@@ -35,6 +36,21 @@ func newAuthorizationProxy(buildSrv string, header string, authorization string)
 // Pass through requests
 func newTransparentProxy(upstream string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		url, _ := url.Parse(upstream)
+		httputil.NewSingleHostReverseProxy(url).ServeHTTP(w, r)
+	}
+}
+
+// fail with the given error up to a number of times
+func newUnreliableProxy(upstream string, status int, failures int) http.HandlerFunc {
+	requests := 0
+	return func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		if requests <= failures {
+			w.WriteHeader(status)
+			return
+		}
+
 		url, _ := url.Parse(upstream)
 		httputil.NewSingleHostReverseProxy(url).ServeHTTP(w, r)
 	}
@@ -183,6 +199,22 @@ func Test_Provider(t *testing.T) { //nolint:paralleltest
 			},
 			expectErr: ErrDownload,
 		},
+		{
+			title:         "test download with default retries",
+			downloadProxy: newUnreliableProxy(storeSrv.URL, http.StatusServiceUnavailable, 1),
+			opts: &k6deps.Options{
+				Env: k6deps.Source{Name: "K6_DEPS", Contents: []byte("k6=v0.50.0")},
+			},
+		},
+		{
+			title:         "test we don't retry forever",
+			config:        Config{DownloadConfig: DownloadConfig{Retries: 1}},
+			downloadProxy: newUnreliableProxy(storeSrv.URL, http.StatusServiceUnavailable, math.MaxInt),
+			opts: &k6deps.Options{
+				Env: k6deps.Source{Name: "K6_DEPS", Contents: []byte("k6=v0.50.0")},
+			},
+			expectErr: ErrDownload,
+		},
 	}
 
 	for _, tc := range testCases { //nolint:paralleltest
@@ -207,7 +239,7 @@ func Test_Provider(t *testing.T) { //nolint:paralleltest
 			config := tc.config
 			config.BinDir = filepath.Join(t.TempDir(), "provider")
 			config.BuildServiceURL = testSrvURL
-			// override download proxy if not set in the test. This is needed to test wrong proxy URL
+			// FIXME: override download proxy if not set in the test. This is needed to test wrong proxy URL
 			if config.DownloadConfig.ProxyURL == "" {
 				config.DownloadConfig.ProxyURL = testStoreProxy
 			}
