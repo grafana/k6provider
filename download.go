@@ -2,11 +2,21 @@ package k6provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
+	"time"
+)
+
+const (
+	// DefaultRetries number of retries for download requests
+	DefaultRetries = 3
+	// DefaultBackoff initial backoff time between retries. It is incremented exponentially between retries.
+	DefaultBackoff = 1 * time.Second
 )
 
 // DownloadConfig defines the configuration for downloading files
@@ -24,6 +34,11 @@ type DownloadConfig struct {
 	Headers map[string]string
 	// ProxyURL URL to proxy for downloading binaries
 	ProxyURL string
+	// Retries number of retries for download requests. Default to 3
+	Retries int
+	// Backoff initial backoff time between retries. Default to 1s
+	// It is incremented exponentially between retries: 1s, 2s, 4s...
+	Backoff time.Duration
 }
 
 // downloader is a utility for downloading files
@@ -32,6 +47,8 @@ type downloader struct {
 	auth     string
 	authType string
 	headers  map[string]string
+	retries  int
+	backoff  time.Duration
 }
 
 // newDownloader returns a new Downloader
@@ -67,6 +84,8 @@ func newDownloader(config DownloadConfig) (*downloader, error) {
 		auth:     downloadAuth,
 		authType: downloadAuthType,
 		headers:  config.Headers,
+		retries:  config.Retries,
+		backoff:  config.Backoff,
 	}, nil
 }
 
@@ -86,7 +105,36 @@ func (d *downloader) download(ctx context.Context, from string, dest io.Writer) 
 		req.Header.Add(h, v)
 	}
 
-	resp, err := d.client.Do(req)
+	var (
+		resp    *http.Response
+		backoff = d.backoff
+		retries = d.retries
+	)
+
+	if retries == 0 {
+		retries = DefaultRetries
+	}
+
+	if backoff == 0 {
+		backoff = DefaultBackoff
+	}
+
+	// try at least once
+	for {
+		// it is safe to reuse the request as it doesn't have a body
+		resp, err = d.client.Do(req)
+
+		if retries == 0 || !shouldRetry(err, resp) {
+			break
+		}
+
+		time.Sleep(backoff)
+
+		// increase backoff exponentially for next retry
+		backoff *= 2
+		retries--
+	}
+
 	if err != nil {
 		return err
 	}
@@ -100,4 +148,26 @@ func (d *downloader) download(ctx context.Context, from string, dest io.Writer) 
 	_, err = io.Copy(dest, resp.Body)
 
 	return err
+}
+
+// shouldRetry returns true if the error or response indicates that the request should be retried
+func shouldRetry(err error, resp *http.Response) bool {
+	if err != nil {
+		if errors.Is(err, io.EOF) { // assuming EOF is due to connection interrupted by network error
+			return true
+		}
+
+		var ne net.Error
+		if errors.As(err, &ne) {
+			return ne.Timeout()
+		}
+
+		return false
+	}
+
+	if resp.StatusCode == http.StatusServiceUnavailable || resp.StatusCode == http.StatusInternalServerError {
+		return true
+	}
+
+	return false
 }
