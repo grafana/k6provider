@@ -323,12 +323,11 @@ func (p *Provider) GetBinary(
 	}
 
 	err = p.downloader.download(ctx, artifact.URL, target)
+	_ = target.Close()
 	if err != nil {
 		_ = os.RemoveAll(artifactDir)
 		return K6Binary{}, NewWrappedError(ErrDownload, err)
 	}
-
-	_ = target.Close()
 
 	// start pruning in background
 	// TODO: handle case the calling process is cancelled
