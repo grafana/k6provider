@@ -125,7 +125,10 @@ type Config struct {
 	BuildServiceAuth string
 	// BuildServiceHeaders HTTP headers for the k6 build service
 	BuildServiceHeaders map[string]string
-	// HighWaterMark is the upper limit of cache size to trigger a prune
+	// HighWaterMark is the upper limit of cache size to trigger a prune.
+	// If 0 (default) the cache is not pruned.
+	// This option is ignored when running in windows systems
+	// See https://github.com/grafana/k6provider/issues/42
 	HighWaterMark int64
 	// PruneInterval minimum time between prune attempts. Defaults to 1h
 	PruneInterval time.Duration
