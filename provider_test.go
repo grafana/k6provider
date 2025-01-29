@@ -51,7 +51,7 @@ func newUnreliableProxy(upstream string, status int, failures int) http.HandlerF
 	}
 }
 
-func Test_Provider(t *testing.T) { //nolint:paralleltest
+func Test_Provider(t *testing.T) { //nolint:tparallel
 	t.Parallel()
 
 	testEnv, err := testutils.NewTestEnv(
