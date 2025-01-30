@@ -33,6 +33,7 @@ type dirLock struct {
 func newFileLock(path string) *dirLock {
 	return &dirLock{
 		lockFile: filepath.Join(path, "k6provider.lock"),
+		handle:  syscall.InvalidHandle,
 	}
 }
 
