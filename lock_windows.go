@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"sync"
 	"syscall"
-	"unsafe"
 )
 
 const (
@@ -17,9 +16,9 @@ const (
 )
 
 var (
-	modkernel32      = syscall.NewLazyDLL("kernel32.dll")
-	procLockFileEx   = modkernel32.NewProc("LockFileEx")
-	procUnlockFileEx = modkernel32.NewProc("UnlockFileEx")
+	modkernel32    = syscall.NewLazyDLL("kernel32.dll")
+	procLockFile   = modkernel32.NewProc("LockFile")
+	procUnlockFile = modkernel32.NewProc("UnlockFile")
 )
 
 // A dirLock prevents concurrent access to a directory.
@@ -70,13 +69,12 @@ func (m *dirLock) lock() error {
 	}
 
 	r1, _, e1 := syscall.SyscallN(
-		procLockFileEx.Addr(),
+		procLockFile.Addr(),
 		uintptr(handle),
-		uintptr(lockfileExclusiveLock|lockfileFailImmediately), // request exclusive lock and fail if not possible
-		uintptr(0), // reserved
-		uintptr(0), // range of bytes to lock (low)
-		uintptr(1), // range of bytes to lock (high)
-		uintptr(unsafe.Pointer(&syscall.Overlapped{HEvent: syscall.InvalidHandle})), // pass an overlap without event handle
+		uintptr(0), // lock area offset (low)
+		uintptr(0), // lock area offset (high)
+		uintptr(0), // bytes to lock (low)
+		uintptr(1), // bytes to lock (high)
 	)
 	if r1 == 0 { // the call failed
 		if e1 != 0 { // e1 is the error code, if it's not 0, there was an error
@@ -109,12 +107,12 @@ func (m *dirLock) unlock() error {
 	}()
 
 	r1, _, e1 := syscall.SyscallN(
-		procUnlockFileEx.Addr(),
+		procUnlockFile.Addr(),
 		uintptr(m.handle),
-		uintptr(0), // reserved
-		uintptr(0), // range of bytes to lock (low)
-		uintptr(1), // range of bytes to lock (high)
-		uintptr(unsafe.Pointer(&syscall.Overlapped{HEvent: syscall.InvalidHandle})), // pass an overlap without event handle
+		uintptr(0), // lock area offset (low)
+		uintptr(0), // lock area offset (high)
+		uintptr(0), // bytes to lock (low)
+		uintptr(1), // bytes to lock (high)
 	)
 	var err error
 	if r1 == 0 { // the call failed
