@@ -79,6 +79,8 @@ func (m *dirLock) lock() error {
 		uintptr(0), // bytes to lock (high)
 	)
 	if r1 == 0 { // the call failed
+		_ = syscall.Close(handle)
+
 		if syscall.Errno(e1) == errnoLocked {
 			return errLocked
 		}
@@ -87,7 +89,7 @@ func (m *dirLock) lock() error {
 			err = syscall.EINVAL
 		}
 
-		return fmt.Errorf("%w (%d) %s", errLockFailed, e1, error(e1).Error())
+		return fmt.Errorf("%w (errno %d) %s", errLockFailed, e1, error(e1).Error())
 	}
 
 	m.handle = handle
