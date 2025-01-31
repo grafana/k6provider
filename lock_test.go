@@ -48,8 +48,6 @@ func TestLock(t *testing.T) {
 	if err := otherLock.lock(); err != nil {
 		t.Fatalf("unexpected %v", err)
 	}
-	// must unlock or test can't clean up the temp dir
-	otherLock.unlock()
 
 	// retrying original lock should return ErrLocked
 	if err := l.lock(); !errors.Is(err, errLocked) {
