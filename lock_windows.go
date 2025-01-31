@@ -61,7 +61,7 @@ func (m *dirLock) lock() error {
 		syscall.GENERIC_READ,
 		syscall.FILE_SHARE_READ,
 		nil,
-		syscall.OPEN_EXISTING,
+		syscall.OPEN_ALWAYS,
 		syscall.FILE_ATTRIBUTE_NORMAL,
 		0,
 	)
