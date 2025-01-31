@@ -11,8 +11,9 @@ import (
 )
 
 const (
-	lockfileFailImmediately = 1
-	lockfileExclusiveLock   = 2
+	lockfileFailImmediately               = 1
+	lockfileExclusiveLock                 = 2
+	errnoSharingViolation   syscall.Errno = 32
 )
 
 var (
@@ -78,19 +79,19 @@ func (m *dirLock) lock() error {
 		uintptr(0), // bytes to lock (high)
 	)
 	if r1 == 0 { // the call failed
-		if e1 != 0 { // e1 is the error code, if it's not 0, there was an error
-			err = error(e1)
-		} else { // otherwise, the error is unknown
+		if syscall.Errno(e1) == errnoSharingViolation {
+			return errLocked
+		}
+
+		if e1 == 0 { // error code is unknown
 			err = syscall.EINVAL
 		}
+
+		return fmt.Errorf("%w %s", errLockFailed, error(e1).Error())
 	}
 
-	if err == nil {
-		m.handle = handle
-		return nil
-	}
-
-	return fmt.Errorf("%w %w", errLockFailed, err)
+	m.handle = handle
+	return nil
 }
 
 func (m *dirLock) unlock() error {
@@ -115,17 +116,12 @@ func (m *dirLock) unlock() error {
 		uintptr(1), // bytes to lock (low)
 		uintptr(0), // bytes to lock (high)
 	)
-	var err error
 	if r1 == 0 { // the call failed
-		if e1 != 0 { // e1 is the error code, if it's not 0, there was an error
-			err = error(e1)
-		} else { // otherwise, the error is unknown
-			err = syscall.EINVAL
+		if e1 == 0 { // e1 is the error code, if it's not 0, there was an error
+			e1 = syscall.EINVAL
 		}
+		return fmt.Errorf("%w %s", errUnLockFailed, error(e1).Error())
 	}
 
-	if err != nil {
-		return fmt.Errorf("%w %w", errUnLockFailed, err)
-	}
 	return nil
 }
