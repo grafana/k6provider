@@ -33,7 +33,7 @@ type dirLock struct {
 func newFileLock(path string) *dirLock {
 	return &dirLock{
 		lockFile: filepath.Join(path, "k6provider.lock"),
-		handle:  syscall.InvalidHandle,
+		handle:   syscall.InvalidHandle,
 	}
 }
 
@@ -61,7 +61,7 @@ func (m *dirLock) lock() error {
 		syscall.GENERIC_READ,
 		syscall.FILE_SHARE_READ,
 		nil,
-		syscall.OPEN_ALWAYS,
+		syscall.OPEN_EXISTING,
 		syscall.FILE_ATTRIBUTE_NORMAL,
 		0,
 	)
@@ -74,8 +74,8 @@ func (m *dirLock) lock() error {
 		uintptr(handle),
 		uintptr(0), // lock area offset (low)
 		uintptr(0), // lock area offset (high)
-		uintptr(0), // bytes to lock (low)
-		uintptr(1), // bytes to lock (high)
+		uintptr(1), // bytes to lock (low)
+		uintptr(0), // bytes to lock (high)
 	)
 	if r1 == 0 { // the call failed
 		if e1 != 0 { // e1 is the error code, if it's not 0, there was an error
@@ -112,8 +112,8 @@ func (m *dirLock) unlock() error {
 		uintptr(m.handle),
 		uintptr(0), // lock area offset (low)
 		uintptr(0), // lock area offset (high)
-		uintptr(0), // bytes to lock (low)
-		uintptr(1), // bytes to lock (high)
+		uintptr(1), // bytes to lock (low)
+		uintptr(0), // bytes to lock (high)
 	)
 	var err error
 	if r1 == 0 { // the call failed
