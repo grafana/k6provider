@@ -87,7 +87,7 @@ func (m *dirLock) lock() error {
 			err = syscall.EINVAL
 		}
 
-		return fmt.Errorf("%w %s", errLockFailed, error(e1).Error())
+		return fmt.Errorf("%w (%d) %s", errLockFailed, e1, error(e1).Error())
 	}
 
 	m.handle = handle
