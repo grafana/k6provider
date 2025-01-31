@@ -13,7 +13,7 @@ import (
 const (
 	lockfileFailImmediately               = 1
 	lockfileExclusiveLock                 = 2
-	errnoSharingViolation   syscall.Errno = 32
+	errnoLocked             syscall.Errno = 33
 )
 
 var (
@@ -79,7 +79,7 @@ func (m *dirLock) lock() error {
 		uintptr(0), // bytes to lock (high)
 	)
 	if r1 == 0 { // the call failed
-		if syscall.Errno(e1) == errnoSharingViolation {
+		if syscall.Errno(e1) == errnoLocked {
 			return errLocked
 		}
 
