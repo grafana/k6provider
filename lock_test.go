@@ -1,6 +1,3 @@
-//go:build !windows
-// +build !windows
-
 package k6provider
 
 import (
@@ -47,9 +44,12 @@ func TestLock(t *testing.T) {
 	}
 
 	// trying another lock again should work now
-	if err := newFileLock(dir).lock(); err != nil {
+	otherLock := newFileLock(dir)
+	if err := otherLock.lock(); err != nil {
 		t.Fatalf("unexpected %v", err)
 	}
+	// must unlock or test can't clean up the temp dir
+	defer otherLock.unlock()
 
 	// retrying original lock should return ErrLocked
 	if err := l.lock(); !errors.Is(err, errLocked) {
