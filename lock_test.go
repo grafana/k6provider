@@ -1,6 +1,3 @@
-//go:build !windows
-// +build !windows
-
 package k6provider
 
 import (
@@ -14,15 +11,15 @@ func TestLock(t *testing.T) {
 	dir := t.TempDir()
 
 	// this is the original lock
-	l := newFileLock(dir)
+	firstLock := newFileLock(dir)
 
 	// should lock dir without errors
-	if err := l.lock(); err != nil {
+	if err := firstLock.lock(); err != nil {
 		t.Fatalf("unexpected %v", err)
 	}
 
 	//  locking again should return without errors
-	if err := l.lock(); err != nil {
+	if err := firstLock.lock(); err != nil {
 		t.Fatalf("unexpected %v", err)
 	}
 
@@ -32,27 +29,33 @@ func TestLock(t *testing.T) {
 	}
 
 	// locking another directory return without errors
-	if err := newFileLock(t.TempDir()).lock(); err != nil {
+	anotherLock := newFileLock(t.TempDir())
+	if err := anotherLock.lock(); err != nil {
 		t.Fatalf("unexpected %v", err)
 	}
+	// must unlock or test can't clean up the tmp dir
+	defer anotherLock.unlock() //nolint:errcheck
 
 	// unlock should work
-	if err := l.unlock(); err != nil {
+	if err := firstLock.unlock(); err != nil {
 		t.Fatalf("unexpected %v", err)
 	}
 
 	// unlocking again should return without errors
-	if err := l.unlock(); err != nil {
+	if err := firstLock.unlock(); err != nil {
 		t.Fatalf("unexpected %v", err)
 	}
 
 	// trying another lock again should work now
-	if err := newFileLock(dir).lock(); err != nil {
+	secondLock := newFileLock(dir)
+	if err := secondLock.lock(); err != nil {
 		t.Fatalf("unexpected %v", err)
 	}
+	// must unlock or test can't clean up the tmp dir
+	defer secondLock.unlock() //nolint:errcheck
 
 	// retrying original lock should return ErrLocked
-	if err := l.lock(); !errors.Is(err, errLocked) {
+	if err := firstLock.lock(); !errors.Is(err, errLocked) {
 		t.Fatalf("unexpected %v", err)
 	}
 
