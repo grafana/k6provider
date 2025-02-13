@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -263,12 +264,24 @@ func (p *Provider) GetArtifact(
 		return Artifact{}, NewWrappedError(ErrInvalidParameters, cause)
 	}
 
+	// the checksum can be base64 encoded or not depending on the source
+	// if the length is not 64 we assume it is encoded and we try to decode it
+	// see https://github.com/grafana/k6build/issues/140
+	checksum := artifact.Checksum
+	if len(checksum) < 64 {
+		var decoded []byte
+		decoded, err = base64.StdEncoding.DecodeString(checksum)
+		if err != nil {
+			return Artifact{}, NewWrappedError(ErrBuild, fmt.Errorf("invalid checksum: %w", err))
+		}
+		checksum = fmt.Sprintf("%x", decoded)
+	}
 	return Artifact{
 		ID:           artifact.ID,
 		URL:          artifact.URL,
 		Dependencies: artifact.Dependencies,
 		Platform:     artifact.Platform,
-		Checksum:     artifact.Checksum,
+		Checksum:     checksum,
 	}, nil
 }
 
@@ -393,5 +406,6 @@ func validateChecksum(filePath string, expectedChecksum string) bool {
 	}
 
 	actualChecksum := fmt.Sprintf("%x", hash.Sum(nil))
+
 	return actualChecksum == expectedChecksum
 }

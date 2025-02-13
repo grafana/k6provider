@@ -155,13 +155,13 @@ func (d *downloader) download(ctx context.Context, from string, checksum string,
 		return err
 	}
 
-	// calculate checksum
+	// calculate and validate checksum
 	downloadChecksum := fmt.Sprintf("%x", sha256.Sum256(buff.Bytes()))
 	if checksum != downloadChecksum {
 		return fmt.Errorf("downloaded content checksum mismatch")
 	}
 
-	return err
+	return nil
 }
 
 // shouldRetry returns true if the error or response indicates that the request should be retried
