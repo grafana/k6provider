@@ -94,6 +94,10 @@ type K6Binary struct {
 	Dependencies map[string]string
 	// Checksum of the binary
 	Checksum string
+	// Indicates if the artifact is retrieved from cache
+	Cached bool
+	// Source of the artifact (if not cached)
+	DownloadURL string
 }
 
 // UnmarshalDeps returns the dependencies as a list of name:version pairs separated by ";"
@@ -301,7 +305,9 @@ func (p *Provider) GetBinary(
 		return K6Binary{
 			Path:         binPath,
 			Dependencies: artifact.Dependencies,
-			Checksum:     artifact.Checksum,
+			// FIXME: we should return the checksum of the binary in cache
+			Checksum: artifact.Checksum,
+			Cached:   true,
 		}, nil
 	}
 
@@ -340,6 +346,8 @@ func (p *Provider) GetBinary(
 		Path:         binPath,
 		Dependencies: artifact.Dependencies,
 		Checksum:     artifact.Checksum,
+		Cached:       false,
+		DownloadURL:  artifact.URL,
 	}, nil
 }
 
