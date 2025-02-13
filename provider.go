@@ -5,8 +5,10 @@ package k6provider
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -298,21 +300,20 @@ func (p *Provider) GetBinary(
 	binPath := filepath.Join(artifactDir, k6Binary)
 	_, err = os.Stat(binPath)
 
-	// binary already exists
-	if err == nil {
+	// binary already exists and is valid
+	if err == nil && validateChecksum(binPath, artifact.Checksum) {
 		go p.pruner.Touch(binPath)
 
 		return K6Binary{
 			Path:         binPath,
 			Dependencies: artifact.Dependencies,
-			// FIXME: we should return the checksum of the binary in cache
-			Checksum: artifact.Checksum,
-			Cached:   true,
+			Checksum:     artifact.Checksum,
+			Cached:       true,
 		}, nil
 	}
 
-	// other error
-	if !os.IsNotExist(err) {
+	// if there's other error)
+	if err != nil && !os.IsNotExist(err) {
 		return K6Binary{}, NewWrappedError(ErrBinary, err)
 	}
 
@@ -374,4 +375,23 @@ func buildDeps(deps k6deps.Dependencies) (string, []k6build.Dependency) {
 	}
 
 	return k6constraint, bdeps
+}
+
+// validateChecksum validates the sha256 checksum of a file given its path
+// We ignore errors accessing the file because if checksum doesn't match we
+// are going to override it anyway
+func validateChecksum(filePath string, expectedChecksum string) bool {
+	file, err := os.Open(filePath) //nolint:gosec
+	if err != nil {
+		return false
+	}
+	defer file.Close() //nolint:errcheck
+
+	hash := sha256.New()
+	if _, err = io.Copy(hash, file); err != nil {
+		return false
+	}
+
+	actualChecksum := fmt.Sprintf("%x", hash.Sum(nil))
+	return actualChecksum == expectedChecksum
 }
