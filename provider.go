@@ -331,7 +331,7 @@ func (p *Provider) GetBinary(
 		return K6Binary{}, NewWrappedError(ErrBinary, err)
 	}
 
-	err = p.downloader.download(ctx, artifact.URL, target)
+	err = p.downloader.download(ctx, artifact.URL, artifact.Checksum, target)
 	_ = target.Close()
 	if err != nil {
 		_ = os.RemoveAll(artifactDir)

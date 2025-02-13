@@ -2,6 +2,7 @@ package k6provider
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"math"
 	"net/http"
@@ -48,6 +49,16 @@ func newUnreliableProxy(upstream string, status int, failures int) http.HandlerF
 
 		url, _ := url.Parse(upstream)
 		httputil.NewSingleHostReverseProxy(url).ServeHTTP(w, r)
+	}
+}
+
+// returns a corrupted random content
+func newCorruptedProxy() http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		buffer := make([]byte, 1024)
+		_, _ = rand.Read(buffer)
+		_, _ = w.Write(buffer)
 	}
 }
 
@@ -173,6 +184,14 @@ func Test_Provider(t *testing.T) { //nolint:tparallel
 			title:         "test we don't retry forever",
 			config:        Config{DownloadConfig: DownloadConfig{Retries: 1}},
 			downloadProxy: newUnreliableProxy(testEnv.StoreServiceURL(), http.StatusServiceUnavailable, math.MaxInt),
+			opts: &k6deps.Options{
+				Env: k6deps.Source{Name: "K6_DEPS", Contents: []byte("k6=v0.50.0")},
+			},
+			expectErr: ErrDownload,
+		},
+		{
+			title:         "detect corrupted binary",
+			downloadProxy: newCorruptedProxy(),
 			opts: &k6deps.Options{
 				Env: k6deps.Source{Name: "K6_DEPS", Contents: []byte("k6=v0.50.0")},
 			},

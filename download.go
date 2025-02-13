@@ -1,7 +1,9 @@
 package k6provider
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
@@ -89,7 +91,7 @@ func newDownloader(config DownloadConfig) (*downloader, error) {
 	}, nil
 }
 
-func (d *downloader) download(ctx context.Context, from string, dest io.Writer) error {
+func (d *downloader) download(ctx context.Context, from string, checksum string, dest io.Writer) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, from, nil)
 	if err != nil {
 		return err
@@ -145,7 +147,19 @@ func (d *downloader) download(ctx context.Context, from string, dest io.Writer) 
 
 	defer resp.Body.Close() //nolint:errcheck
 
-	_, err = io.Copy(dest, resp.Body)
+	// write content to object file and copy to buffer to calculate checksum
+	// TODO: optimize memory by copying content in blocks
+	buff := bytes.Buffer{}
+	_, err = io.Copy(dest, io.TeeReader(resp.Body, &buff))
+	if err != nil {
+		return err
+	}
+
+	// calculate checksum
+	downloadChecksum := fmt.Sprintf("%x", sha256.Sum256(buff.Bytes()))
+	if checksum != downloadChecksum {
+		return fmt.Errorf("downloaded content checksum mismatch")
+	}
 
 	return err
 }
