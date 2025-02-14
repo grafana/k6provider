@@ -242,10 +242,24 @@ func Test_Provider(t *testing.T) { //nolint:tparallel
 				t.Fatalf("expected %v got %v", tc.expectErr, err)
 			}
 
+			// in case of error the directory should be empty
 			if err != nil {
+				var files []os.DirEntry
+				files, err = os.ReadDir(config.BinDir)
+
+				if errors.Is(err, os.ErrNotExist) {
+					return
+				}
+				if err != nil {
+					t.Fatalf("stat %v", err)
+				}
+				if len(files) != 0 {
+					t.Fatalf("expected empty directory got %v", files)
+				}
 				return
 			}
 
+			// in case of not error, we expect the binary to be downloaded
 			cmd := exec.Command(k6.Path, "version")
 
 			out, err := cmd.Output()
@@ -255,61 +269,5 @@ func Test_Provider(t *testing.T) { //nolint:tparallel
 
 			t.Log(string(out))
 		})
-	}
-}
-
-func Test_ChecksumValidation(t *testing.T) {
-	t.Parallel()
-
-	testEnv, err := testutils.NewTestEnv(
-		testutils.TestEnvConfig{
-			WorkDir:    t.TempDir(),
-			CatalogURL: "testdata/catalog.json",
-		},
-	)
-	if err != nil {
-		t.Fatalf("test env setup %v", err)
-	}
-	t.Cleanup(testEnv.Cleanup)
-
-	binDir := filepath.Join(t.TempDir(), "provider")
-	config := Config{
-		BinDir:          binDir,
-		BuildServiceURL: testEnv.BuildServiceURL(),
-	}
-
-	provider, err := NewProvider(config)
-	if err != nil {
-		t.Fatalf("initializing provider %v", err)
-	}
-
-	deps := k6deps.Dependencies{}
-	err = deps.UnmarshalText([]byte("k6=v0.50.0"))
-	if err != nil {
-		t.Fatalf("analyzing dependencies %v", err)
-	}
-
-	// ensure we have the binary
-	k6, err := provider.GetBinary(context.TODO(), deps)
-	if err != nil {
-		t.Fatalf("unexpected %v", err)
-	}
-
-	// corrupt the binary
-	buffer := make([]byte, 1024)
-	_, _ = rand.Read(buffer)
-	_ = os.WriteFile(k6.Path, buffer, 0o644)
-
-	// try to use the binary
-	k6, err = provider.GetBinary(context.TODO(), deps)
-	if err != nil {
-		t.Fatalf("unexpected %v", err)
-	}
-
-	cmd := exec.Command(k6.Path, "version")
-
-	_, err = cmd.Output()
-	if err != nil {
-		t.Fatalf("running command %v", err)
 	}
 }
