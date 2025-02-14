@@ -14,7 +14,7 @@ import (
 // defined in a high-water-mark.
 type Pruner struct {
 	pruneLock     sync.Mutex
-	dirLock       *dirLock
+	dirLock       *fileLock
 	dir           string
 	hwm           int64
 	pruneInterval time.Duration

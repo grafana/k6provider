@@ -22,27 +22,27 @@ var (
 	procUnlockFile = modkernel32.NewProc("UnlockFile")
 )
 
-// A dirLock prevents concurrent access to a directory.
+// A fileLock prevents concurrent access to a file.
 // This code is inspired on the golang's fslock package:
 // https://github.com/juju/fslock/blob/master/fslock_windows.go
-type dirLock struct {
+type fileLock struct {
 	mutex    sync.Mutex
 	lockFile string
 	handle   syscall.Handle
 }
 
-func newFileLock(path string) *dirLock {
-	return &dirLock{
+func newFileLock(path string) *fileLock {
+	return &fileLock{
 		lockFile: filepath.Join(path, "k6provider.lock"),
 		handle:   syscall.InvalidHandle,
 	}
 }
 
-// lock places an advisory write lock on the directory's lock file.
-// If the directory is blocked, returns ErrLocked.
+// lock places an advisory write lock on the file.
+// If the file is blocked, returns ErrLocked.
 // If lock returns nil, no other process will be able to place a lock until
 // this process exits or unlocks it.
-func (m *dirLock) lock() error {
+func (m *fileLock) lock() error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
@@ -96,7 +96,7 @@ func (m *dirLock) lock() error {
 	return nil
 }
 
-func (m *dirLock) unlock() error {
+func (m *fileLock) unlock() error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
