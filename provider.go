@@ -5,8 +5,11 @@ package k6provider
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -261,12 +264,24 @@ func (p *Provider) GetArtifact(
 		return Artifact{}, NewWrappedError(ErrInvalidParameters, cause)
 	}
 
+	// the checksum can be base64 encoded or not depending on the source
+	// if the length is not 64 we assume it is encoded and we try to decode it
+	// see https://github.com/grafana/k6build/issues/140
+	checksum := artifact.Checksum
+	if len(checksum) < 64 {
+		var decoded []byte
+		decoded, err = base64.StdEncoding.DecodeString(checksum)
+		if err != nil {
+			return Artifact{}, NewWrappedError(ErrBuild, fmt.Errorf("invalid checksum: %w", err))
+		}
+		checksum = fmt.Sprintf("%x", decoded)
+	}
 	return Artifact{
 		ID:           artifact.ID,
 		URL:          artifact.URL,
 		Dependencies: artifact.Dependencies,
 		Platform:     artifact.Platform,
-		Checksum:     artifact.Checksum,
+		Checksum:     checksum,
 	}, nil
 }
 
@@ -298,21 +313,20 @@ func (p *Provider) GetBinary(
 	binPath := filepath.Join(artifactDir, k6Binary)
 	_, err = os.Stat(binPath)
 
-	// binary already exists
-	if err == nil {
+	// binary already exists and is valid
+	if err == nil && validateChecksum(binPath, artifact.Checksum) {
 		go p.pruner.Touch(binPath)
 
 		return K6Binary{
 			Path:         binPath,
 			Dependencies: artifact.Dependencies,
-			// FIXME: we should return the checksum of the binary in cache
-			Checksum: artifact.Checksum,
-			Cached:   true,
+			Checksum:     artifact.Checksum,
+			Cached:       true,
 		}, nil
 	}
 
-	// other error
-	if !os.IsNotExist(err) {
+	// if there's other error)
+	if err != nil && !os.IsNotExist(err) {
 		return K6Binary{}, NewWrappedError(ErrBinary, err)
 	}
 
@@ -331,7 +345,7 @@ func (p *Provider) GetBinary(
 		return K6Binary{}, NewWrappedError(ErrBinary, err)
 	}
 
-	err = p.downloader.download(ctx, artifact.URL, target)
+	err = p.downloader.download(ctx, artifact.URL, artifact.Checksum, target)
 	_ = target.Close()
 	if err != nil {
 		_ = os.RemoveAll(artifactDir)
@@ -374,4 +388,24 @@ func buildDeps(deps k6deps.Dependencies) (string, []k6build.Dependency) {
 	}
 
 	return k6constraint, bdeps
+}
+
+// validateChecksum validates the sha256 checksum of a file given its path
+// We ignore errors accessing the file because if checksum doesn't match we
+// are going to override it anyway
+func validateChecksum(filePath string, expectedChecksum string) bool {
+	file, err := os.Open(filePath) //nolint:gosec
+	if err != nil {
+		return false
+	}
+	defer file.Close() //nolint:errcheck
+
+	hash := sha256.New()
+	if _, err = io.Copy(hash, file); err != nil {
+		return false
+	}
+
+	actualChecksum := fmt.Sprintf("%x", hash.Sum(nil))
+
+	return actualChecksum == expectedChecksum
 }

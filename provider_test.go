@@ -2,12 +2,14 @@ package k6provider
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"math"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
 	"net/url"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
@@ -48,6 +50,16 @@ func newUnreliableProxy(upstream string, status int, failures int) http.HandlerF
 
 		url, _ := url.Parse(upstream)
 		httputil.NewSingleHostReverseProxy(url).ServeHTTP(w, r)
+	}
+}
+
+// returns a corrupted random content
+func newCorruptedProxy() http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		buffer := make([]byte, 1024)
+		_, _ = rand.Read(buffer)
+		_, _ = w.Write(buffer)
 	}
 }
 
@@ -178,6 +190,14 @@ func Test_Provider(t *testing.T) { //nolint:tparallel
 			},
 			expectErr: ErrDownload,
 		},
+		{
+			title:         "detect corrupted binary",
+			downloadProxy: newCorruptedProxy(),
+			opts: &k6deps.Options{
+				Env: k6deps.Source{Name: "K6_DEPS", Contents: []byte("k6=v0.50.0")},
+			},
+			expectErr: ErrDownload,
+		},
 	}
 
 	for _, tc := range testCases { //nolint:paralleltest
@@ -235,5 +255,61 @@ func Test_Provider(t *testing.T) { //nolint:tparallel
 
 			t.Log(string(out))
 		})
+	}
+}
+
+func Test_ChecksumValidation(t *testing.T) {
+	t.Parallel()
+
+	testEnv, err := testutils.NewTestEnv(
+		testutils.TestEnvConfig{
+			WorkDir:    t.TempDir(),
+			CatalogURL: "testdata/catalog.json",
+		},
+	)
+	if err != nil {
+		t.Fatalf("test env setup %v", err)
+	}
+	t.Cleanup(testEnv.Cleanup)
+
+	binDir := filepath.Join(t.TempDir(), "provider")
+	config := Config{
+		BinDir:          binDir,
+		BuildServiceURL: testEnv.BuildServiceURL(),
+	}
+
+	provider, err := NewProvider(config)
+	if err != nil {
+		t.Fatalf("initializing provider %v", err)
+	}
+
+	deps := k6deps.Dependencies{}
+	err = deps.UnmarshalText([]byte("k6=v0.50.0"))
+	if err != nil {
+		t.Fatalf("analyzing dependencies %v", err)
+	}
+
+	// ensure we have the binary
+	k6, err := provider.GetBinary(context.TODO(), deps)
+	if err != nil {
+		t.Fatalf("unexpected %v", err)
+	}
+
+	// corrupt the binary
+	buffer := make([]byte, 1024)
+	_, _ = rand.Read(buffer)
+	_ = os.WriteFile(k6.Path, buffer, 0o644)
+
+	// try to use the binary
+	k6, err = provider.GetBinary(context.TODO(), deps)
+	if err != nil {
+		t.Fatalf("unexpected %v", err)
+	}
+
+	cmd := exec.Command(k6.Path, "version")
+
+	_, err = cmd.Output()
+	if err != nil {
+		t.Fatalf("running command %v", err)
 	}
 }
