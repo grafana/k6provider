@@ -338,7 +338,7 @@ func (p *Provider) GetBinary(
 
 	target, err := os.OpenFile( //nolint:gosec
 		binPath,
-		os.O_WRONLY|os.O_CREATE,
+		os.O_TRUNC|os.O_WRONLY|os.O_CREATE,
 		syscall.S_IRUSR|syscall.S_IXUSR|syscall.S_IWUSR,
 	)
 	if err != nil {
