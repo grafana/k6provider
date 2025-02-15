@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"syscall"
 	"time"
 )
 
@@ -91,7 +92,21 @@ func newDownloader(config DownloadConfig) (*downloader, error) {
 	}, nil
 }
 
-func (d *downloader) download(ctx context.Context, from string, checksum string, dest io.Writer) error {
+//nolint:funlen
+func (d *downloader) download(ctx context.Context, from string, path string, checksum string) error {
+	downloadBin := path + ".download"
+	dest, err := os.OpenFile( //nolint:gosec
+		downloadBin,
+		os.O_TRUNC|os.O_WRONLY|os.O_CREATE,
+		syscall.S_IRUSR|syscall.S_IXUSR|syscall.S_IWUSR,
+	)
+	if err != nil {
+		return err
+	}
+
+	// ensure we close in case of error
+	defer dest.Close() //nolint:errcheck
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, from, nil)
 	if err != nil {
 		return err
@@ -155,13 +170,20 @@ func (d *downloader) download(ctx context.Context, from string, checksum string,
 		return err
 	}
 
+	err = dest.Close()
+	if err != nil {
+		return err
+	}
+
 	// calculate and validate checksum
 	downloadChecksum := fmt.Sprintf("%x", sha256.Sum256(buff.Bytes()))
 	if checksum != downloadChecksum {
 		return fmt.Errorf("downloaded content checksum mismatch")
 	}
 
-	return nil
+	err = os.Rename(downloadBin, path)
+
+	return err
 }
 
 // shouldRetry returns true if the error or response indicates that the request should be retried
