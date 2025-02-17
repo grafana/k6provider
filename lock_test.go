@@ -1,8 +1,10 @@
 package k6provider
 
 import (
+	"context"
 	"errors"
 	"testing"
+	"time"
 )
 
 func Test_TryLock(t *testing.T) {
@@ -62,5 +64,61 @@ func Test_TryLock(t *testing.T) {
 	// trying to lock a non-existing dir should fails
 	if err := newFileLock("/path/to/non/existing/dir").tryLock(); !errors.Is(err, errLockFailed) {
 		t.Fatalf("unexpected %v", err)
+	}
+}
+
+func Test_Lock(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		timeout time.Duration
+		expect  error
+	}{
+		{
+			name:    "no timeout",
+			timeout: 0,
+			expect:  nil,
+		},
+		{
+			name:    "unlocked before timeout",
+			timeout: 5 * time.Second,
+			expect:  nil,
+		},
+		{
+			name:    "timeout wating for unlock",
+			timeout: 1 * time.Second,
+			expect:  errLocked,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			dir := t.TempDir()
+
+			// get a lock on the tmp dir
+			lock := newFileLock(dir)
+			err := lock.tryLock()
+			if err != nil {
+				t.Fatalf("unexpected %v", err)
+			}
+
+			// start a goroutine to unlock the file after 3 seconds
+			// ensure the file is unlocked after the test
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			t.Cleanup(cancel)
+			go func() {
+				<-ctx.Done()
+				_ = lock.unlock()
+			}()
+
+			// try to lock the tmp dir while still locked
+			err = newFileLock(dir).lock(tc.timeout)
+			if !errors.Is(err, tc.expect) {
+				t.Fatalf("expected %v got %v", tc.expect, err)
+			}
+		})
 	}
 }
