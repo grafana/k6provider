@@ -14,7 +14,7 @@ import (
 // defined in a high-water-mark.
 type Pruner struct {
 	pruneLock     sync.Mutex
-	dirLock       *fileLock
+	dirLock       *dirLock
 	dir           string
 	hwm           int64
 	pruneInterval time.Duration
@@ -31,7 +31,7 @@ type pruneTarget struct {
 // prune interval
 func NewPruner(dir string, hwm int64, pruneInterval time.Duration) *Pruner {
 	return &Pruner{
-		dirLock:       newFileLock(dir),
+		dirLock:       newDirLock(dir),
 		dir:           dir,
 		hwm:           hwm,
 		pruneInterval: pruneInterval,

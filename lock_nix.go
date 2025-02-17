@@ -11,27 +11,27 @@ import (
 	"syscall"
 )
 
-// A fileLock prevents concurrent access to a file.
+// A dir lock prevents concurrent access to a directory.
 // This code is inspired on the golang's filelock package:
 // https://pkg.go.dev/cmd/go/internal/lockedfile/internal/filelock
-type fileLock struct {
+type dirLock struct {
 	mutex    sync.Mutex
 	lockFile string
 	fd       int
 }
 
-func newFileLock(path string) *fileLock {
-	return &fileLock{
-		lockFile: filepath.Join(path, "k6provider.lock"),
+func newDirLock(path string) *dirLock {
+	return &dirLock{
+		lockFile: filepath.Join(path, ".lock"),
 		fd:       -1,
 	}
 }
 
-// tryLock places an advisory write tryLock on the file.
-// If the file is locked, returns ErrLocked immediately.
+// tryLock places an advisory write lock on the directory
+// If the directory is locked, returns ErrLocked immediately.
 // If tryLock returns nil, no other process will be able to place a lock until
 // this process exits or unlocks it.
-func (m *fileLock) tryLock() error {
+func (m *dirLock) tryLock() error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
@@ -57,7 +57,7 @@ func (m *fileLock) tryLock() error {
 	return fmt.Errorf("%w %w", errLockFailed, err)
 }
 
-func (m *fileLock) unlock() error {
+func (m *dirLock) unlock() error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 

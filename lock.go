@@ -18,8 +18,8 @@ var (
 	errUnLockFailed = errors.New("failed to lock file")
 )
 
-// lock places an advisory write lock on the file.
-// returns ErrLocked immediately if the fil is locked and the timeout expires.
+// lock places an advisory write lock on the directory.
+// returns ErrLocked immediately if the directory is locked and the timeout expires.
 // if timeout is 0, lock will wait indefinitely.
 // If lock returns nil, no other process will be able to place a lock until this process exits or unlocks it.
 //
@@ -27,7 +27,7 @@ var (
 // tryLock.
 // Implementing the blocking lock functionality in an operating system specific way would be more complicated and
 // error prone.
-func (m *fileLock) lock(timeout time.Duration) error {
+func (m *dirLock) lock(timeout time.Duration) error {
 	backoff := defaultBackoff
 	deadLine := time.Now().Add(timeout)
 	for {

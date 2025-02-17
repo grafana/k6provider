@@ -13,7 +13,7 @@ func Test_TryLock(t *testing.T) {
 	dir := t.TempDir()
 
 	// this is the original lock
-	firstLock := newFileLock(dir)
+	firstLock := newDirLock(dir)
 
 	// should lock dir without errors
 	if err := firstLock.tryLock(); err != nil {
@@ -26,12 +26,12 @@ func Test_TryLock(t *testing.T) {
 	}
 
 	// another lock should return ErrLocked
-	if err := newFileLock(dir).tryLock(); !errors.Is(err, errLocked) {
+	if err := newDirLock(dir).tryLock(); !errors.Is(err, errLocked) {
 		t.Fatalf("unexpected %v", err)
 	}
 
 	// locking another directory return without errors
-	anotherLock := newFileLock(t.TempDir())
+	anotherLock := newDirLock(t.TempDir())
 	if err := anotherLock.tryLock(); err != nil {
 		t.Fatalf("unexpected %v", err)
 	}
@@ -49,7 +49,7 @@ func Test_TryLock(t *testing.T) {
 	}
 
 	// trying another lock again should work now
-	secondLock := newFileLock(dir)
+	secondLock := newDirLock(dir)
 	if err := secondLock.tryLock(); err != nil {
 		t.Fatalf("unexpected %v", err)
 	}
@@ -62,7 +62,7 @@ func Test_TryLock(t *testing.T) {
 	}
 
 	// trying to lock a non-existing dir should fails
-	if err := newFileLock("/path/to/non/existing/dir").tryLock(); !errors.Is(err, errLockFailed) {
+	if err := newDirLock("/path/to/non/existing/dir").tryLock(); !errors.Is(err, errLockFailed) {
 		t.Fatalf("unexpected %v", err)
 	}
 }
@@ -99,7 +99,7 @@ func Test_Lock(t *testing.T) {
 			dir := t.TempDir()
 
 			// get a lock on the tmp dir
-			lock := newFileLock(dir)
+			lock := newDirLock(dir)
 			err := lock.tryLock()
 			if err != nil {
 				t.Fatalf("unexpected %v", err)
@@ -115,7 +115,7 @@ func Test_Lock(t *testing.T) {
 			}()
 
 			// try to lock the tmp dir while still locked
-			err = newFileLock(dir).lock(tc.timeout)
+			err = newDirLock(dir).lock(tc.timeout)
 			if !errors.Is(err, tc.expect) {
 				t.Fatalf("expected %v got %v", tc.expect, err)
 			}
