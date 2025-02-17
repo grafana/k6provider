@@ -38,11 +38,11 @@ func newFileLock(path string) *fileLock {
 	}
 }
 
-// lock places an advisory write lock on the file.
-// If the file is blocked, returns ErrLocked.
-// If lock returns nil, no other process will be able to place a lock until
+// tryLock places an advisory write lock on the file.
+// If the file is locked, returns ErrLocked inmediately.
+// If tryLock returns nil, no other process will be able to place a lock until
 // this process exits or unlocks it.
-func (m *fileLock) lock() error {
+func (m *fileLock) tryLock() error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
