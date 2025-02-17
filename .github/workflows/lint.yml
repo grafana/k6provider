@@ -37,3 +37,4 @@ jobs:
           version: ${{ env.LINT_VERSION }}
           args: --timeout=30m
           install-mode: binary
+          verify: false
