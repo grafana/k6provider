@@ -1,7 +1,7 @@
-# v1.58.2
+# v1.62.2
 # Please don't remove the first line. It uses in CI to determine the golangci version
 run:
-  deadline: 5m
+  timeout: 5m
 
 issues:
   # Maximum issues count per one linter. Set to 0 to disable. Default is 50.
@@ -40,13 +40,10 @@ issues:
      text: 'use of `os\.(SyscallError|Signal|Interrupt)` forbidden'
 
 linters-settings:
-  nolintlint:
-    # Disable to ensure that nolint directives don't have a leading space. Default is true.
-    allow-leading-space: false
   exhaustive:
     default-signifies-exhaustive: true
   govet:
-    check-shadowing: true
+    shadow: true
   cyclop:
     max-complexity: 25
   maligned:
