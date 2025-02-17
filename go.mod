@@ -3,7 +3,7 @@ module github.com/grafana/k6provider
 go 1.22.4
 
 require (
-	github.com/grafana/k6build v0.5.4
+	github.com/grafana/k6build v0.5.5
 	github.com/grafana/k6deps v0.2.1
 )
 
@@ -12,7 +12,7 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/evanw/esbuild v0.24.2 // indirect
-	github.com/grafana/k6foundry v0.3.1 // indirect
+	github.com/grafana/k6foundry v0.4.2 // indirect
 	github.com/grafana/k6pack v0.2.4 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/prometheus/client_golang v1.20.5 // indirect
