@@ -12,7 +12,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"syscall"
 	"time"
 
 	"github.com/grafana/k6build"
@@ -324,7 +323,7 @@ func (p *Provider) GetBinary(
 	}
 
 	// if there's other error)
-	if err != nil && !os.IsNotExist(err) {
+	if !os.IsNotExist(err) {
 		return K6Binary{}, NewWrappedError(ErrBinary, err)
 	}
 
@@ -334,24 +333,7 @@ func (p *Provider) GetBinary(
 		return K6Binary{}, NewWrappedError(ErrBinary, err)
 	}
 
-	downloadBin := binPath + ".download"
-	target, err := os.OpenFile( //nolint:gosec
-		downloadBin,
-		os.O_TRUNC|os.O_WRONLY|os.O_CREATE,
-		syscall.S_IRUSR|syscall.S_IXUSR|syscall.S_IWUSR,
-	)
-	if err != nil {
-		return K6Binary{}, NewWrappedError(ErrBinary, err)
-	}
-
-	err = p.downloader.download(ctx, artifact.URL, artifact.Checksum, target)
-	_ = target.Close()
-	if err != nil {
-		_ = os.RemoveAll(artifactDir)
-		return K6Binary{}, NewWrappedError(ErrDownload, err)
-	}
-
-	err = os.Rename(downloadBin, binPath)
+	err = p.downloader.download(ctx, artifact.URL, binPath, artifact.Checksum)
 	if err != nil {
 		_ = os.RemoveAll(artifactDir)
 		return K6Binary{}, NewWrappedError(ErrDownload, err)
