@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/grafana/k6build/pkg/testutils"
@@ -261,5 +262,64 @@ func Test_Provider(t *testing.T) { //nolint:tparallel
 
 			t.Log(string(out))
 		})
+	}
+}
+
+func Test_ConcurentDownload(t *testing.T) {
+	t.Parallel()
+
+	testEnv, err := testutils.NewTestEnv(
+		testutils.TestEnvConfig{
+			WorkDir:    t.TempDir(),
+			CatalogURL: "testdata/catalog.json",
+		},
+	)
+	if err != nil {
+		t.Fatalf("test env setup %v", err)
+	}
+	t.Cleanup(testEnv.Cleanup)
+
+	provider, err := NewProvider(Config{
+		BinDir:          filepath.Join(t.TempDir(), "provider"),
+		BuildServiceURL: testEnv.BuildServiceURL(),
+	})
+	if err != nil {
+		t.Fatalf("initializing provider %v", err)
+	}
+
+	deps := k6deps.Dependencies{}
+	err = deps.UnmarshalText([]byte("k6=v0.50.0"))
+	if err != nil {
+		t.Fatalf("analyzing dependencies %v", err)
+	}
+
+	wg := sync.WaitGroup{}
+	errs := make(chan error, 10)
+
+	for range 3 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			k6, err := provider.GetBinary(context.TODO(), deps)
+			if err != nil {
+				errs <- err
+				return
+			}
+			cmd := exec.Command(k6.Path, "version")
+
+			err = cmd.Run()
+			if err != nil {
+				errs <- err
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	select {
+	case err := <-errs:
+		t.Fatalf("expected no error, got %v", err)
+	default:
 	}
 }
