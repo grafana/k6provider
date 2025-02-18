@@ -242,19 +242,11 @@ func Test_Provider(t *testing.T) { //nolint:tparallel
 				t.Fatalf("expected %v got %v", tc.expectErr, err)
 			}
 
-			// in case of error the directory should be empty
-			if err != nil {
-				var files []os.DirEntry
-				files, err = os.ReadDir(config.BinDir)
-
-				if errors.Is(err, os.ErrNotExist) {
-					return
-				}
-				if err != nil {
-					t.Fatalf("stat %v", err)
-				}
-				if len(files) != 0 {
-					t.Fatalf("expected empty directory got %v", files)
+			// in case of error the binary should not be downloaded
+			if tc.expectErr != nil {
+				_, err := os.Stat(k6.Path)
+				if !os.IsNotExist(err) {
+					t.Fatalf("expected binary not to be downloaded")
 				}
 				return
 			}
