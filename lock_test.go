@@ -115,7 +115,10 @@ func Test_Lock(t *testing.T) {
 			}()
 
 			// try to lock the tmp dir while still locked
-			err = newDirLock(dir).lock(tc.timeout)
+			secondLock := newDirLock(dir)
+			defer secondLock.unlock() //nolint:errcheck
+
+			err = secondLock.lock(tc.timeout)
 			if !errors.Is(err, tc.expect) {
 				t.Fatalf("expected %v got %v", tc.expect, err)
 			}
