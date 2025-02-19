@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 
@@ -321,5 +322,104 @@ func Test_ConcurentDownload(t *testing.T) {
 	case err := <-errs:
 		t.Fatalf("expected no error, got %v", err)
 	default:
+	}
+}
+
+func Test_NewProvider(t *testing.T) {
+	testEnv, err := testutils.NewTestEnv(
+		testutils.TestEnvConfig{
+			WorkDir:    t.TempDir(),
+			CatalogURL: "testdata/catalog.json",
+		},
+	)
+	if err != nil {
+		t.Fatalf("test env setup %v", err)
+	}
+	t.Cleanup(testEnv.Cleanup)
+
+	cacheDir := filepath.Join(t.TempDir(), "k6provider")
+
+	testCases := []struct {
+		title     string
+		env       map[string]string
+		config    Config
+		expectErr error
+	}{
+		{
+			title: "new from Config",
+			env:   map[string]string{},
+			config: Config{
+				BinDir:          cacheDir,
+				BuildServiceURL: testEnv.BuildServiceURL(),
+			},
+		},
+		{
+			title: "new from env",
+			env: map[string]string{
+				"K6_BINARY_CACHE":  cacheDir,
+				"K6_BUILD_SERVICE_URL": testEnv.BuildServiceURL(),
+			},
+			config: Config{},
+		},
+		{
+			title: "config should override env",
+			env: map[string]string{
+				"K6_BINARY_CACHE":  "/path/to/wrong/cache/dir",
+				"K6_BUILD_SERVICE_URL": "http://localhost:9999",
+			},
+			config: Config{
+				BinDir:          cacheDir,
+				BuildServiceURL: testEnv.BuildServiceURL(),
+			},
+		},
+		{
+			title: "new from empty Config",
+			env: map[string]string{
+				"K6_BINARY_CACHE":  "",
+				"K6_BUILD_SERVICE_URL": "",
+			},
+			config:    Config{},
+			expectErr: ErrConfig,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.title, func(t *testing.T) {
+			for k, v := range tc.env {
+				t.Setenv(k, v)
+			}
+
+			// cleanup cache dir to avoid cached binaries
+			err = os.RemoveAll(cacheDir)
+			if err != nil {
+				t.Fatalf("cleaning up cache dir %v", err)
+			}
+
+			provider, err := NewProvider(tc.config)
+			if !errors.Is(err, tc.expectErr) {
+				t.Fatalf("expected %v got %v", tc.expectErr, err)
+			}
+
+			if tc.expectErr != nil {
+				return
+			}
+
+			if provider == nil {
+				t.Fatal("expected provider to be initialized")
+			}
+
+			binary, err := provider.GetBinary(context.TODO(), k6deps.Dependencies{})
+			if err != nil {
+				t.Fatalf("expected no error, got %v", err)
+			}
+
+			if !strings.HasPrefix(binary.Path, cacheDir) {
+				t.Fatalf("expected binary path to be in %s, got %s", cacheDir, binary.Path)
+			}
+
+			if !strings.HasPrefix(binary.DownloadURL, testEnv.StoreServiceURL()) {
+				t.Fatalf("expected download url to be in %s, got %s", testEnv.StoreServiceURL(), binary.DownloadURL)
+			}
+		})
 	}
 }
