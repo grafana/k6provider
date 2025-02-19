@@ -113,7 +113,8 @@ func (b K6Binary) UnmarshalDeps() string {
 type Config struct {
 	// Platform for the binaries. Defaults to the current platform
 	Platform string
-	// BinDir path to binary directory. Defaults to the os' tmp dir
+	// BinDir path to binary directory. If not set the environment variable K6_BINARY_CACHE is used.
+	// If not set, the OS-specific cache directory is used. If not set, a temporary directory is used.
 	BinDir string
 	// BuildServiceURL URL of the k6 build service
 	// If not specified the value from K6_BUILD_SERVICE_URL environment variable is used
@@ -161,12 +162,12 @@ func NewDefaultProvider() (*Provider, error) {
 	return NewProvider(Config{})
 }
 
-// NewProvider returns a [Provider] with the given Options
-//
-// If BuildServiceURL is not set, it will use the K6_BUILD_SERVICE_URL environment variable
-// If DownloadProxyURL is not set, it will use the K6_DOWNLOAD_PROXY environment variable
+// NewProvider returns a [Provider] with the given Config
 func NewProvider(config Config) (*Provider, error) {
 	binDir := config.BinDir
+	if binDir == "" {
+		binDir = os.Getenv("K6_BINARY_CACHE")
+	}
 	if binDir == "" {
 		cacheDir, err := os.UserCacheDir()
 		if err != nil {
