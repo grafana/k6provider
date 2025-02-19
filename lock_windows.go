@@ -31,18 +31,18 @@ type dirLock struct {
 	handle   syscall.Handle
 }
 
-func newFileLock(path string) *dirLock {
+func newDirLock(path string) *dirLock {
 	return &dirLock{
 		lockFile: filepath.Join(path, "k6provider.lock"),
 		handle:   syscall.InvalidHandle,
 	}
 }
 
-// lock places an advisory write lock on the directory's lock file.
-// If the directory is blocked, returns ErrLocked.
-// If lock returns nil, no other process will be able to place a lock until
+// tryLock places an advisory write lock on the directory
+// If the directory is locked, returns ErrLocked immediately.
+// If tryLock returns nil, no other process will be able to place a lock until
 // this process exits or unlocks it.
-func (m *dirLock) lock() error {
+func (m *dirLock) tryLock() error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 

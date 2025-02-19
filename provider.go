@@ -306,7 +306,22 @@ func (p *Provider) GetBinary(
 		return K6Binary{}, err
 	}
 
+	// ensure the binary's directory always exists
+	// this is slightly inefficient but simplifies logic
 	artifactDir := filepath.Join(p.binDir, artifact.ID)
+	err = os.MkdirAll(artifactDir, 0o700)
+	if err != nil {
+		return K6Binary{}, NewWrappedError(ErrBinary, err)
+	}
+
+	// lock the directory to prevent concurrent access while downloading
+	lock := newDirLock(artifactDir)
+	err = lock.lock(0)
+	if err != nil {
+		return K6Binary{}, NewWrappedError(ErrBinary, err)
+	}
+	defer lock.unlock() //nolint:errcheck
+
 	binPath := filepath.Join(artifactDir, k6Binary)
 	_, err = os.Stat(binPath)
 
@@ -324,12 +339,6 @@ func (p *Provider) GetBinary(
 
 	// if there's other error)
 	if !os.IsNotExist(err) {
-		return K6Binary{}, NewWrappedError(ErrBinary, err)
-	}
-
-	// binary doesn't exists
-	err = os.MkdirAll(artifactDir, 0o700)
-	if err != nil {
 		return K6Binary{}, NewWrappedError(ErrBinary, err)
 	}
 

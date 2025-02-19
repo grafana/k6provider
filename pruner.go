@@ -31,7 +31,7 @@ type pruneTarget struct {
 // prune interval
 func NewPruner(dir string, hwm int64, pruneInterval time.Duration) *Pruner {
 	return &Pruner{
-		dirLock:       newFileLock(dir),
+		dirLock:       newDirLock(dir),
 		dir:           dir,
 		hwm:           hwm,
 		pruneInterval: pruneInterval,
@@ -65,7 +65,7 @@ func (p *Pruner) Prune() error {
 	p.lastPrune = time.Now()
 
 	// prevent concurrent prune to the directory
-	err := p.dirLock.lock()
+	err := p.dirLock.tryLock()
 	if err != nil {
 		// is locked, another pruner must be running (maybe another process)
 		if errors.Is(err, errLocked) {

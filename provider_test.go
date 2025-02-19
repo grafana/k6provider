@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/grafana/k6build/pkg/testutils"
@@ -242,19 +243,11 @@ func Test_Provider(t *testing.T) { //nolint:tparallel
 				t.Fatalf("expected %v got %v", tc.expectErr, err)
 			}
 
-			// in case of error the directory should be empty
-			if err != nil {
-				var files []os.DirEntry
-				files, err = os.ReadDir(config.BinDir)
-
-				if errors.Is(err, os.ErrNotExist) {
-					return
-				}
-				if err != nil {
-					t.Fatalf("stat %v", err)
-				}
-				if len(files) != 0 {
-					t.Fatalf("expected empty directory got %v", files)
+			// in case of error the binary should not be downloaded
+			if tc.expectErr != nil {
+				_, err := os.Stat(k6.Path)
+				if !os.IsNotExist(err) {
+					t.Fatalf("expected binary not to be downloaded")
 				}
 				return
 			}
@@ -269,5 +262,64 @@ func Test_Provider(t *testing.T) { //nolint:tparallel
 
 			t.Log(string(out))
 		})
+	}
+}
+
+func Test_ConcurentDownload(t *testing.T) {
+	t.Parallel()
+
+	testEnv, err := testutils.NewTestEnv(
+		testutils.TestEnvConfig{
+			WorkDir:    t.TempDir(),
+			CatalogURL: "testdata/catalog.json",
+		},
+	)
+	if err != nil {
+		t.Fatalf("test env setup %v", err)
+	}
+	t.Cleanup(testEnv.Cleanup)
+
+	provider, err := NewProvider(Config{
+		BinDir:          filepath.Join(t.TempDir(), "provider"),
+		BuildServiceURL: testEnv.BuildServiceURL(),
+	})
+	if err != nil {
+		t.Fatalf("initializing provider %v", err)
+	}
+
+	deps := k6deps.Dependencies{}
+	err = deps.UnmarshalText([]byte("k6=v0.50.0"))
+	if err != nil {
+		t.Fatalf("analyzing dependencies %v", err)
+	}
+
+	wg := sync.WaitGroup{}
+	errs := make(chan error, 10)
+
+	for range 3 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			k6, err := provider.GetBinary(context.TODO(), deps)
+			if err != nil {
+				errs <- err
+				return
+			}
+			cmd := exec.Command(k6.Path, "version")
+
+			err = cmd.Run()
+			if err != nil {
+				errs <- err
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	select {
+	case err := <-errs:
+		t.Fatalf("expected no error, got %v", err)
+	default:
 	}
 }
