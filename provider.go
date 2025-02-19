@@ -113,8 +113,6 @@ func (b K6Binary) UnmarshalDeps() string {
 type Config struct {
 	// Platform for the binaries. Defaults to the current platform
 	Platform string
-	// BinDir path to binary directory. Defaults to the os' tmp dir
-	BinDir string
 	// BuildServiceURL URL of the k6 build service
 	// If not specified the value from K6_BUILD_SERVICE_URL environment variable is used
 	BuildServiceURL string
@@ -129,11 +127,18 @@ type Config struct {
 	BuildServiceAuth string
 	// BuildServiceHeaders HTTP headers for the k6 build service
 	BuildServiceHeaders map[string]string
-	// HighWaterMark is the upper limit of cache size to trigger a prune.
-	// If 0 (default) the cache is not pruned.
-	// This option is ignored when running in windows systems
-	// See https://github.com/grafana/k6provider/issues/42
+	// BinDir deprecated use BinaryCacheDir
+	BinDir string
+	// BinaryCacheDir path to binary cache directory. If not set the environment variable K6_BINARY_CACHE is used.
+	// If not set, the OS-specific cache directory is used. If not set, a temporary directory is used.
+	BinaryCacheDir string
+	// HighWaterMark deprecated use BinaryCacheSize
 	HighWaterMark int64
+	// BinaryCacheSize is the upper limit of cache size to trigger a prune of least recently used binary.
+	// If 0 (default) is specified, the cache is not pruned.
+	// If not set K6_BINARY_CACHE_SIZE environment variable is used. This variable defines the size in bytes,
+	// kilobytes (Kb), megabytes (Mb) or gigabytes (Gb). Ex: "100Kb", "1Gb"
+	BinaryCacheSize int64
 	// PruneInterval minimum time between prune attempts. Defaults to 1h
 	PruneInterval time.Duration
 	// Download configuration
@@ -161,18 +166,36 @@ func NewDefaultProvider() (*Provider, error) {
 	return NewProvider(Config{})
 }
 
-// NewProvider returns a [Provider] with the given Options
-//
-// If BuildServiceURL is not set, it will use the K6_BUILD_SERVICE_URL environment variable
-// If DownloadProxyURL is not set, it will use the K6_DOWNLOAD_PROXY environment variable
+// NewProvider returns a [Provider] with the given Config
 func NewProvider(config Config) (*Provider, error) {
+	var err error
+
+	// try first deprecated BinDir
 	binDir := config.BinDir
+	if binDir == "" {
+		binDir = config.BinaryCacheDir
+	}
+	if binDir == "" {
+		binDir = os.Getenv("K6_BINARY_CACHE")
+	}
 	if binDir == "" {
 		cacheDir, err := os.UserCacheDir()
 		if err != nil {
 			cacheDir = os.TempDir()
 		}
 		binDir = filepath.Join(cacheDir, "k6provider")
+	}
+
+	// try first the deprecated HighWaterMark
+	cacheSize := config.HighWaterMark
+	if cacheSize == 0 {
+		cacheSize = config.BinaryCacheSize
+	}
+	if cacheSize == 0 {
+		cacheSize, err = parseSize(os.Getenv("K6_BINARY_CACHE_SIZE"))
+		if err != nil {
+			return nil, NewWrappedError(ErrConfig, err)
+		}
 	}
 
 	httpClient := http.DefaultClient
@@ -208,7 +231,7 @@ func NewProvider(config Config) (*Provider, error) {
 	}
 
 	pruneInterval := config.PruneInterval
-	if config.HighWaterMark > 0 && pruneInterval == 0 {
+	if cacheSize > 0 && pruneInterval == 0 {
 		pruneInterval = defaultPruneInterval
 	}
 
@@ -223,7 +246,7 @@ func NewProvider(config Config) (*Provider, error) {
 		binDir:     binDir,
 		buildSrv:   buildSrv,
 		platform:   platform,
-		pruner:     NewPruner(binDir, config.HighWaterMark, pruneInterval),
+		pruner:     NewPruner(binDir, cacheSize, pruneInterval),
 	}, nil
 }
 
