@@ -194,7 +194,7 @@ func Test_Provider(t *testing.T) { //nolint:tparallel
 				}
 
 				config := tc.config
-				config.BinDir = filepath.Join(t.TempDir(), "provider")
+				config.BinaryCacheDir = filepath.Join(t.TempDir(), "provider")
 				config.BuildServiceURL = testSrvURL
 				// FIXME: override download proxy if not set in the test. This is needed to test wrong proxy URL
 				if config.DownloadConfig.ProxyURL == "" {
@@ -237,7 +237,7 @@ func Test_Provider(t *testing.T) { //nolint:tparallel
 		t.Parallel()
 
 		provider, err := NewProvider(Config{
-			BinDir:          filepath.Join(t.TempDir(), "provider"),
+			BinaryCacheDir:  filepath.Join(t.TempDir(), "provider"),
 			BuildServiceURL: testEnv.BuildServiceURL(),
 		})
 		if err != nil {
@@ -288,6 +288,14 @@ func Test_Provider(t *testing.T) { //nolint:tparallel
 				title: "new from Config",
 				env:   map[string]string{},
 				config: Config{
+					BinaryCacheDir:  cacheDir,
+					BuildServiceURL: testEnv.BuildServiceURL(),
+				},
+			},
+			{
+				title: "use deprecated BinDir",
+				env:   map[string]string{},
+				config: Config{
 					BinDir:          cacheDir,
 					BuildServiceURL: testEnv.BuildServiceURL(),
 				},
@@ -307,7 +315,7 @@ func Test_Provider(t *testing.T) { //nolint:tparallel
 					"K6_BUILD_SERVICE_URL": "http://localhost:9999",
 				},
 				config: Config{
-					BinDir:          cacheDir,
+					BinaryCacheDir:  cacheDir,
 					BuildServiceURL: testEnv.BuildServiceURL(),
 				},
 			},

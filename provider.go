@@ -127,9 +127,11 @@ type Config struct {
 	BuildServiceAuth string
 	// BuildServiceHeaders HTTP headers for the k6 build service
 	BuildServiceHeaders map[string]string
-	// BinDir path to binary cache directory. If not set the environment variable K6_BINARY_CACHE is used.
-	// If not set, the OS-specific cache directory is used. If not set, a temporary directory is used.
+	// BinDir deprecated use BinaryCacheDir
 	BinDir string
+	// BinaryCacheDir path to binary cache directory. If not set the environment variable K6_BINARY_CACHE is used.
+	// If not set, the OS-specific cache directory is used. If not set, a temporary directory is used.
+	BinaryCacheDir string
 	// HighWaterMark deprecated use BinaryCacheSize
 	HighWaterMark int64
 	// BinaryCacheSize is the upper limit of cache size to trigger a prune of least recently used binary.
@@ -168,7 +170,11 @@ func NewDefaultProvider() (*Provider, error) {
 func NewProvider(config Config) (*Provider, error) {
 	var err error
 
+	// try first deprecated BinDir
 	binDir := config.BinDir
+	if binDir == "" {
+		binDir = config.BinaryCacheDir
+	}
 	if binDir == "" {
 		binDir = os.Getenv("K6_BINARY_CACHE")
 	}
