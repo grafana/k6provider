@@ -6,7 +6,6 @@ metadata:
   description: |
     A library for providing custom k6 binaries that satisfy a given set of dependencies.
   annotations:
-    backstage.io/techdocs-ref: dir:.
     github.com/project-slug: grafana/k6provider
 spec:
   type: library
