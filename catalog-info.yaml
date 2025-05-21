@@ -1,0 +1,13 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: k6provider
+  title: k6provider
+  description: |
+    A library for providing custom k6 binaries that satisfy a given set of dependencies.
+  annotations:
+    github.com/project-slug: grafana/k6provider
+spec:
+  type: library
+  owner: group:default/k6-extensions
+  lifecycle: production
