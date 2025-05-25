@@ -6,7 +6,7 @@ toolchain go1.23.7
 
 require (
 	github.com/grafana/k6build v0.5.11
-	github.com/grafana/k6deps v0.2.6
+	github.com/grafana/k6deps v0.3.0
 )
 
 require (
@@ -21,7 +21,9 @@ require (
 	github.com/prometheus/client_model v0.4.0 // indirect
 	github.com/prometheus/common v0.42.0 // indirect
 	github.com/prometheus/procfs v0.10.1 // indirect
+	github.com/spf13/afero v1.1.2 // indirect
 	golang.org/x/mod v0.23.0 // indirect
 	golang.org/x/sys v0.31.0 // indirect
+	golang.org/x/text v0.25.0 // indirect
 	google.golang.org/protobuf v1.36.5 // indirect
 )
