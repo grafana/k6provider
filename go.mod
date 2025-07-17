@@ -1,11 +1,9 @@
 module github.com/grafana/k6provider
 
-go 1.23.0
-
-toolchain go1.23.7
+go 1.24.0
 
 require (
-	github.com/grafana/k6build v0.5.11
+	github.com/grafana/k6build v0.5.13
 	github.com/grafana/k6deps v0.4.0
 )
 
@@ -22,6 +20,6 @@ require (
 	github.com/prometheus/common v0.42.0 // indirect
 	github.com/prometheus/procfs v0.10.1 // indirect
 	golang.org/x/mod v0.23.0 // indirect
-	golang.org/x/sys v0.31.0 // indirect
+	golang.org/x/sys v0.32.0 // indirect
 	google.golang.org/protobuf v1.36.5 // indirect
 )
