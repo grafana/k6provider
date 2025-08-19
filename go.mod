@@ -5,7 +5,7 @@ go 1.24.0
 toolchain go1.24.2
 
 require (
-	github.com/grafana/k6build v0.5.14
+	github.com/grafana/k6build v0.5.15
 	github.com/grafana/k6deps v0.5.0
 )
 

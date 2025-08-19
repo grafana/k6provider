@@ -13,8 +13,8 @@ github.com/golang/protobuf v1.5.4 h1:i7eJL8qZTpSEXOPTxNKhASYpMn+8e5Q6AdndVa1dWek
 github.com/golang/protobuf v1.5.4/go.mod h1:lnTiLA8Wa4RWRcIUkrtSVa5nRhsEGBg48fD6rSs7xps=
 github.com/google/go-cmp v0.7.0 h1:wk8382ETsv4JYUZwIsn6YpYiWiBsYLSJiTsyBybVuN8=
 github.com/google/go-cmp v0.7.0/go.mod h1:pXiqmnSA92OHEEa9HXL2W4E7lf9JzCmGVUdgjX3N/iU=
-github.com/grafana/k6build v0.5.14 h1:koS8CLqEmEc2J3t0bzBpy5Kioa3nGM40n+UqLlz5lck=
-github.com/grafana/k6build v0.5.14/go.mod h1:5Lj6VOQaJQ/xzVQQc9pFqxorloDEyJJjVdinNSpIoRM=
+github.com/grafana/k6build v0.5.15 h1:4I5dkAWSMvXsElS1OpLbHj6ZXnebXZGnmwDXy5vcwSQ=
+github.com/grafana/k6build v0.5.15/go.mod h1:Sk7SUiCnx2AgkirG3PrCtmJKYL+a8EeRdTzFfbxP0X8=
 github.com/grafana/k6deps v0.5.0 h1:wX7+no5LfevTIo/63k0gUS3dImeZp3JpFBfk6VlXpEI=
 github.com/grafana/k6deps v0.5.0/go.mod h1:+OlyAesdoN/UK0J3V79sW1rgsZvIhMu8JMjCWyTrrCw=
 github.com/grafana/k6foundry v0.4.7 h1:1YXkTBwO/2dSx0pqJrraJATsFlsIX0vEpaEjV7E35w4=
