@@ -17,7 +17,6 @@ import (
 	"testing"
 
 	"github.com/grafana/k6build/pkg/testutils"
-	"github.com/grafana/k6deps"
 )
 
 // checks request has the correct Authorization header
@@ -78,8 +77,7 @@ func Test_Provider(t *testing.T) { //nolint:tparallel
 	t.Cleanup(testEnv.Cleanup)
 
 	// reuse the same dependencies for all tests to avoid multiple builds
-	deps := k6deps.Dependencies{}
-	err = deps.UnmarshalText([]byte("k6=v0.50.0"))
+	deps := Dependencies{"k6": "=v0.50.0"}
 	if err != nil {
 		t.Fatalf("analyzing dependencies %v", err)
 	}
@@ -355,7 +353,7 @@ func Test_Provider(t *testing.T) { //nolint:tparallel
 					t.Fatal("expected provider to be initialized")
 				}
 
-				binary, err := provider.GetBinary(context.TODO(), k6deps.Dependencies{})
+				binary, err := provider.GetBinary(context.TODO(), Dependencies{})
 				if err != nil {
 					t.Fatalf("expected no error, got %v", err)
 				}

@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/grafana/k6deps"
 	"github.com/grafana/k6provider"
 )
 
@@ -29,8 +28,7 @@ func main() {
 	}
 
 	k6Version := os.Args[1]
-	deps := make(k6deps.Dependencies)
-	err = deps.UnmarshalText([]byte(fmt.Sprintf("k6=%s", k6Version)))
+	deps := k6provider.Dependencies{"k6": k6Version}
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
