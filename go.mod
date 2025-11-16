@@ -4,7 +4,7 @@ go 1.24.0
 
 toolchain go1.24.2
 
-require github.com/grafana/k6build v0.5.15
+require github.com/grafana/k6build v0.5.16
 
 require (
 	github.com/Masterminds/semver/v3 v3.3.1 // indirect
@@ -18,6 +18,6 @@ require (
 	github.com/prometheus/common v0.42.0 // indirect
 	github.com/prometheus/procfs v0.10.1 // indirect
 	golang.org/x/mod v0.23.0 // indirect
-	golang.org/x/sys v0.33.0 // indirect
+	golang.org/x/sys v0.36.0 // indirect
 	google.golang.org/protobuf v1.36.5 // indirect
 )
