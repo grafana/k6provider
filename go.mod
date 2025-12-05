@@ -2,7 +2,7 @@ module github.com/grafana/k6provider
 
 go 1.24.0
 
-toolchain go1.24.2
+toolchain go1.25.5
 
 require github.com/grafana/k6build v0.5.16
 
