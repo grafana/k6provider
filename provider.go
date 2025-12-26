@@ -145,7 +145,7 @@ type Config struct {
 }
 
 // Dependencies defines a group of dependencies with their version constrains
-// For example, {"k6": "*", "k6/x/sql", ">v0.4.0"}
+// For example, {"k6": "*", "k6/x/sql": ">v0.4.0"}
 type Dependencies map[string]string
 
 // Provider implements an interface for providing custom k6 binaries
