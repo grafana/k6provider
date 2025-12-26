@@ -32,7 +32,7 @@ func main() {
 	}
 
 	// create dependencies for k6 version v0.52.0
-	deps := k6provider.Dependencies{"k6", "=v0.52.0"}
+	deps := k6provider.Dependencies{"k6": "=v0.52.0"}
 
 	// obtain binary from the build service
 	k6binary, err := provider.GetBinary(context.TODO(), deps)
