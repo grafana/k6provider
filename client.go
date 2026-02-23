@@ -36,15 +36,15 @@ type buildArtifact struct {
 
 // buildRequest defines a request to the build service
 type buildRequest struct {
-	K6Constraints string        `json:"k6,omitempty"`
-	Dependencies  []dependency  `json:"dependencies,omitempty"`
-	Platform      string        `json:"platform,omitempty"`
+	K6Constraints string       `json:"k6,omitempty"`
+	Dependencies  []dependency `json:"dependencies,omitempty"`
+	Platform      string       `json:"platform,omitempty"`
 }
 
 // buildResponse defines the response for a BuildRequest
 type buildResponse struct {
 	Error    *WrappedError `json:"error,omitempty"`
-	Artifact buildArtifact `json:"artifact,omitempty"`
+	Artifact buildArtifact `json:"artifact"`
 }
 
 // buildServiceClientConfig defines the configuration for accessing a remote build service
@@ -101,9 +101,9 @@ func (r *buildClient) Build(
 	deps []dependency,
 ) (buildArtifact, error) {
 	req := buildRequest{
-		Platform:     platform,
+		Platform:      platform,
 		K6Constraints: k6Constraints,
-		Dependencies: deps,
+		Dependencies:  deps,
 	}
 
 	var resp buildResponse
@@ -146,7 +146,9 @@ func (r *buildClient) doRequest(ctx context.Context, path string, request, respo
 	if err != nil {
 		return NewWrappedError(ErrBuild, err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return NewWrappedError(ErrBuild, fmt.Errorf("status %s", resp.Status))
@@ -158,4 +160,3 @@ func (r *buildClient) doRequest(ctx context.Context, path string, request, respo
 
 	return nil
 }
-
