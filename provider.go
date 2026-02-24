@@ -13,9 +13,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"time"
-
-	"github.com/grafana/k6build"
-	"github.com/grafana/k6build/pkg/client"
 )
 
 const (
@@ -37,52 +34,6 @@ var (
 	// ErrPruningCache indicates an error pruning the binary cache
 	ErrPruningCache = errors.New("pruning cache")
 )
-
-// WrappedError defines a custom error type that allows creating an error
-// specifying its cause.
-//
-// This type is compatible with the error interface.
-//
-// Contrary to the error wrapping mechanism provided by the standard library
-// the cause can be extracted using the unwrap() method.
-//
-// WrappedError also implements the Is method to that it can compare to an error
-// based on the result of the Error() method, overcoming a limitation of the error
-// implemented in the stdlib.
-//
-//	Example:
-//	var (
-//	    err    = errors.New("error")
-//	    root   = errors.New("root cause")
-//	    cause  = NewWrappedError(cause, root)
-//	    ferr   = fmt.Errorf("%w %w", err, cause)
-//	    werr   = NewWrappedError(err,)
-//	    target = errors.New("error")
-//	)
-//
-//	errors.Is(werr, err)    // returns true
-//	errors.Is(werr, cause)  // returns true
-//	errors.Is(werr, root)   // return true
-//	errors.Is(err, target)  // returns false (err != target)
-//	errors.Is(werr, target) // returns true  (err.Error() == target.Error())
-//	ferr.Unwrap()           // return nil
-//	werr.Unwrap()           // return cause
-//	werr.Unwrap().Unwrap()  // return root
-type WrappedError = *k6build.WrappedError
-
-// NewWrappedError return a new [WrappedError] from an error and its reason
-func NewWrappedError(err error, reason error) WrappedError {
-	return k6build.NewWrappedError(err, reason)
-}
-
-// AsWrappedError returns and error as a [WrapperError] and a boolean indicating if it was possible
-func AsWrappedError(err error) (WrappedError, bool) {
-	buildErr := &k6build.WrappedError{}
-	if !errors.As(err, &buildErr) {
-		return nil, false
-	}
-	return buildErr, true
-}
 
 // K6Binary defines the attributes of a k6 binary
 type K6Binary struct {
@@ -156,7 +107,7 @@ type Provider struct {
 	client     *http.Client
 	downloader *downloader
 	binDir     string
-	buildSrv   k6build.BuildService
+	buildSrv   buildService
 	platform   string
 	pruner     *Pruner
 }
@@ -216,14 +167,12 @@ func NewProvider(config Config) (*Provider, error) {
 		buildSrvAuth = os.Getenv("K6_BUILD_SERVICE_AUTH")
 	}
 
-	buildSrv, err := client.NewBuildServiceClient(
-		client.BuildServiceClientConfig{
-			URL:               buildSrvURL,
-			Authorization:     buildSrvAuth,
-			AuthorizationType: config.BuildServiceAuthType,
-			Headers:           config.BuildServiceHeaders,
-		},
-	)
+	buildSrv, err := newBuildServiceClient(buildServiceClientConfig{
+		URL:               buildSrvURL,
+		Authorization:     buildSrvAuth,
+		AuthorizationType: config.BuildServiceAuthType,
+		Headers:           config.BuildServiceHeaders,
+	})
 	if err != nil {
 		return nil, NewWrappedError(ErrConfig, err)
 	}
@@ -391,26 +340,20 @@ func (p *Provider) GetBinary(
 	}, nil
 }
 
-// buildDeps takes a set of k6 dependencies and returns a string representing
-// the version constraints for the k6 and a slice of k6build.Dependencies
-// representing the extension dependencies. The default k6 constrain is "*".
-func buildDeps(deps Dependencies) (string, []k6build.Dependency) {
-	bdeps := make([]k6build.Dependency, 0, len(deps))
+func buildDeps(deps Dependencies) (string, []dependency) {
+	bdeps := make([]dependency, 0, len(deps))
 	k6constraint := "*"
 
-	for dep, constrains := range deps {
+	for dep, constraints := range deps {
 		if dep == k6Module {
-			k6constraint = constrains
+			k6constraint = constraints
 			continue
 		}
 
-		bdeps = append(
-			bdeps,
-			k6build.Dependency{
-				Name:        dep,
-				Constraints: constrains,
-			},
-		)
+		bdeps = append(bdeps, dependency{
+			Name:        dep,
+			Constraints: constraints,
+		})
 	}
 
 	return k6constraint, bdeps

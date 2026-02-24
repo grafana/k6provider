@@ -3,7 +3,10 @@ package k6provider
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -12,12 +15,103 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
-
-	"github.com/grafana/k6build/pkg/testutils"
 )
+
+// testEnv is a mock test environment that provides build and store servers
+type testEnv struct {
+	buildSrv *httptest.Server
+	storeSrv *httptest.Server
+	binPath  string
+	checksum string
+}
+
+func (e *testEnv) BuildServiceURL() string {
+	return e.buildSrv.URL
+}
+
+func (e *testEnv) StoreServiceURL() string {
+	return e.storeSrv.URL
+}
+
+func (e *testEnv) Cleanup() {
+	e.buildSrv.Close()
+	e.storeSrv.Close()
+}
+
+// newTestEnv creates a mock test environment with build and store servers.
+// The build server returns artifacts pointing to the store, which serves a minimal k6 binary.
+func newTestEnv(t *testing.T) *testEnv {
+	t.Helper()
+
+	workDir := t.TempDir()
+	storeDir := filepath.Join(workDir, "store")
+	if err := os.MkdirAll(storeDir, 0o700); err != nil {
+		t.Fatalf("creating store dir: %v", err)
+	}
+
+	// Build minimal k6 binary for testing
+	binPath := filepath.Join(storeDir, "k6")
+	if runtime.GOOS == "windows" {
+		binPath += ".exe"
+	}
+	cmd := exec.Command("go", "build", "-o", binPath, ".")
+	cmd.Dir = filepath.Join("testdata", "fake_k6")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("building fake k6: %v\n%s", err, out)
+	}
+
+	binData, err := os.ReadFile(binPath)
+	if err != nil {
+		t.Fatalf("reading binary: %v", err)
+	}
+	checksum := fmt.Sprintf("%x", sha256.Sum256(binData))
+
+	// Use a fixed artifact ID for consistent URLs
+	artifactID := "test-artifact-v1"
+
+	// Store server: serves binary at /store/{id}/download
+	storeMux := http.NewServeMux()
+	storeMux.HandleFunc("/store/"+artifactID+"/download", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/octet-stream")
+		http.ServeFile(w, r, binPath)
+	})
+	storeSrv := httptest.NewServer(storeMux)
+
+	// Build server: accepts POST /build, returns artifact with URL to store
+	buildMux := http.NewServeMux()
+	buildMux.HandleFunc("POST /build", func(w http.ResponseWriter, r *http.Request) {
+		var req buildRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		downloadURL := storeSrv.URL + "/store/" + artifactID + "/download"
+		resp := buildResponse{
+			Artifact: buildArtifact{
+				ID:           artifactID,
+				URL:          downloadURL,
+				Dependencies: map[string]string{"k6": "v0.50.0"},
+				Platform:     req.Platform,
+				Checksum:     checksum,
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	})
+	buildSrv := httptest.NewServer(buildMux)
+
+	return &testEnv{
+		buildSrv: buildSrv,
+		storeSrv: storeSrv,
+		binPath:  binPath,
+		checksum: checksum,
+	}
+}
 
 // checks request has the correct Authorization header
 func newAuthorizationProxy(buildSrv string, header string, authorization string) http.HandlerFunc {
@@ -65,22 +159,11 @@ func newCorruptedProxy() http.HandlerFunc {
 }
 
 func Test_Provider(t *testing.T) { //nolint:tparallel
-	testEnv, err := testutils.NewTestEnv(
-		testutils.TestEnvConfig{
-			WorkDir:    t.TempDir(),
-			CatalogURL: "testdata/catalog.json",
-		},
-	)
-	if err != nil {
-		t.Fatalf("test env setup %v", err)
-	}
+	testEnv := newTestEnv(t)
 	t.Cleanup(testEnv.Cleanup)
 
 	// reuse the same dependencies for all tests to avoid multiple builds
 	deps := Dependencies{"k6": "=v0.50.0"}
-	if err != nil {
-		t.Fatalf("analyzing dependencies %v", err)
-	}
 
 	t.Run("test binary provisioning", func(t *testing.T) {
 		t.Parallel()
@@ -273,7 +356,7 @@ func Test_Provider(t *testing.T) { //nolint:tparallel
 		}
 	})
 
-	t.Run("test NerProvider", func(t *testing.T) {
+	t.Run("test NewProvider", func(t *testing.T) {
 		cacheDir := filepath.Join(t.TempDir(), "k6provider")
 
 		testCases := []struct {
@@ -335,8 +418,7 @@ func Test_Provider(t *testing.T) { //nolint:tparallel
 				}
 
 				// cleanup cache dir to avoid cached binaries
-				err = os.RemoveAll(cacheDir)
-				if err != nil {
+				if err := os.RemoveAll(cacheDir); err != nil {
 					t.Fatalf("cleaning up cache dir %v", err)
 				}
 
