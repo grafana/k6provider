@@ -14,11 +14,6 @@ const (
 	buildPath       = "build"
 )
 
-// buildService defines the interface for building custom k6 binaries
-type buildService interface {
-	Build(ctx context.Context, platform string, k6Constraints string, deps []dependency) (buildArtifact, error)
-}
-
 // dependency defines a dependency and its semantic version constraints
 type dependency struct {
 	Name        string `json:"name,omitempty"`
@@ -47,50 +42,32 @@ type buildResponse struct {
 	Artifact buildArtifact `json:"artifact"`
 }
 
-// buildServiceClientConfig defines the configuration for accessing a remote build service
-type buildServiceClientConfig struct {
-	URL               string
-	Authorization     string
-	AuthorizationType string
-	Headers           map[string]string
-	HTTPClient        *http.Client
-}
-
-// buildClient implements buildService via HTTP
+// buildClient builds custom k6 binaries via HTTP
 type buildClient struct {
 	srvURL   *url.URL
 	auth     string
 	authType string
 	headers  map[string]string
-	client   *http.Client
 }
 
-func newBuildServiceClient(config buildServiceClientConfig) (buildService, error) {
-	if config.URL == "" {
-		return nil, NewWrappedError(ErrConfig, fmt.Errorf("build service URL is required"))
-	}
-
-	srvURL, err := url.Parse(config.URL)
+func newBuildServiceClient(
+	urlStr, authorization, authorizationType string, headers map[string]string,
+) (*buildClient, error) {
+	srvURL, err := url.Parse(urlStr)
 	if err != nil {
 		return nil, NewWrappedError(ErrConfig, fmt.Errorf("invalid server URL: %w", err))
 	}
 
-	client := config.HTTPClient
-	if client == nil {
-		client = http.DefaultClient
-	}
-
-	authType := config.AuthorizationType
+	authType := authorizationType
 	if authType == "" {
 		authType = defaultAuthType
 	}
 
 	return &buildClient{
 		srvURL:   srvURL,
-		auth:     config.Authorization,
+		auth:     authorization,
 		authType: authType,
-		headers:  config.Headers,
-		client:   client,
+		headers:  headers,
 	}, nil
 }
 
@@ -108,16 +85,11 @@ func (r *buildClient) Build(
 
 	var resp buildResponse
 	if err := r.doRequest(ctx, buildPath, &req, &resp); err != nil {
-		if resp.Error != nil {
-			return buildArtifact{}, resp.Error
-		}
 		return buildArtifact{}, err
 	}
-
 	if resp.Error != nil {
 		return buildArtifact{}, resp.Error
 	}
-
 	return resp.Artifact, nil
 }
 
@@ -142,7 +114,7 @@ func (r *buildClient) doRequest(ctx context.Context, path string, request, respo
 		req.Header.Set(h, v)
 	}
 
-	resp, err := r.client.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return NewWrappedError(ErrBuild, err)
 	}

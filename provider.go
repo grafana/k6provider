@@ -107,7 +107,7 @@ type Provider struct {
 	client     *http.Client
 	downloader *downloader
 	binDir     string
-	buildSrv   buildService
+	buildSrv   *buildClient
 	platform   string
 	pruner     *Pruner
 }
@@ -167,12 +167,8 @@ func NewProvider(config Config) (*Provider, error) {
 		buildSrvAuth = os.Getenv("K6_BUILD_SERVICE_AUTH")
 	}
 
-	buildSrv, err := newBuildServiceClient(buildServiceClientConfig{
-		URL:               buildSrvURL,
-		Authorization:     buildSrvAuth,
-		AuthorizationType: config.BuildServiceAuthType,
-		Headers:           config.BuildServiceHeaders,
-	})
+	buildSrv, err := newBuildServiceClient(
+		buildSrvURL, buildSrvAuth, config.BuildServiceAuthType, config.BuildServiceHeaders)
 	if err != nil {
 		return nil, NewWrappedError(ErrConfig, err)
 	}
@@ -276,10 +272,7 @@ func (p *Provider) GetArtifact(
 // If any error occurs while building, downloading or checking the binary,
 // an [WrappedError] will be returned. This error will be one of the errors
 // defined in the k6provider packaged. Using errors.Unwrap will return its cause.
-func (p *Provider) GetBinary(
-	ctx context.Context,
-	constrains Dependencies,
-) (K6Binary, error) {
+func (p *Provider) GetBinary(ctx context.Context, constrains Dependencies) (K6Binary, error) {
 	artifact, err := p.GetArtifact(ctx, constrains)
 	if err != nil {
 		return K6Binary{}, err
