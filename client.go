@@ -114,7 +114,7 @@ func (r *buildClient) doRequest(ctx context.Context, path string, request, respo
 		req.Header.Set(h, v)
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := http.DefaultClient.Do(req) //nolint:gosec // G704: URL is from build service config, not user input
 	if err != nil {
 		return NewWrappedError(ErrBuild, err)
 	}
