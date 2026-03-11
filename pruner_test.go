@@ -1,5 +1,4 @@
 //go:build !windows
-// +build !windows
 
 package k6provider
 
@@ -75,29 +74,28 @@ func TestPruner(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.title, func(t *testing.T) {
 			t.Parallel()
 
 			tmpDir := t.TempDir()
 			for path, file := range binaries {
-				err := os.MkdirAll(filepath.Join(tmpDir, path), 0o750)
+				err := os.MkdirAll(filepath.Join(tmpDir, path), 0o750) //nolint:forbidigo
 				if err != nil {
 					t.Fatalf("test setup: creating dir %v", err)
 				}
-				err = os.WriteFile(filepath.Join(tmpDir, path, k6Binary), file.Data, 0o600)
+				err = os.WriteFile(filepath.Join(tmpDir, path, k6Binary), file.Data, 0o600) //nolint:forbidigo
 				if err != nil {
 					t.Fatalf("test setup writing file %v", err)
 				}
-				err = os.Chtimes(filepath.Join(tmpDir, path, k6Binary), file.ModTime, file.ModTime)
+				err = os.Chtimes(filepath.Join(tmpDir, path, k6Binary), file.ModTime, file.ModTime) //nolint:forbidigo
 				if err != nil {
 					t.Fatalf("test setup changing mod timestamp %v", err)
 				}
 			}
 			// mark binary-4 as read only and revert at test end to prevent cleanup failure
-			_ = os.Chmod(filepath.Join(tmpDir, "binary-4"), 0o500)
+			_ = os.Chmod(filepath.Join(tmpDir, "binary-4"), 0o500) //nolint:forbidigo
 			t.Cleanup(func() {
-				_ = os.Chmod(filepath.Join(tmpDir, "binary-4"), 0o750)
+				_ = os.Chmod(filepath.Join(tmpDir, "binary-4"), 0o750) //nolint:forbidigo
 			})
 
 			pruner := NewPruner(tmpDir, tc.hwm, time.Hour)
@@ -111,7 +109,7 @@ func TestPruner(t *testing.T) {
 			}
 
 			for _, binary := range tc.expect {
-				_, err = os.Stat(filepath.Join(tmpDir, binary))
+				_, err = os.Stat(filepath.Join(tmpDir, binary)) //nolint:forbidigo
 				if err != nil {
 					t.Fatal(err)
 				}

@@ -19,19 +19,19 @@ func main() {
 	provider, err := k6provider.NewDefaultProvider()
 	if err != nil {
 		fmt.Println(err)
-		os.Exit(1)
+		os.Exit(1) //nolint:forbidigo
 	}
 
-	if len(os.Args) == 1 {
+	if len(os.Args) == 1 { //nolint:forbidigo
 		fmt.Println("k6 version must be specified as first argument")
-		os.Exit(1)
+		os.Exit(1) //nolint:forbidigo
 	}
 
-	k6Version := os.Args[1]
+	k6Version := os.Args[1] //nolint:forbidigo
 	deps := k6provider.Dependencies{"k6": k6Version}
 	if err != nil {
 		fmt.Println(err)
-		os.Exit(1)
+		os.Exit(1) //nolint:forbidigo
 	}
 
 	// obtain binary from build service
@@ -47,10 +47,10 @@ func main() {
 	}
 
 	// execute k6 binary and check version
-	cmd := exec.Command(k6binary.Path, "version") //nolint:gosec
+	cmd := exec.Command(k6binary.Path, "version") //nolint:gosec,noctx // example uses simple exec
 	out, err := cmd.Output()
 	if err != nil {
-		os.Exit(1)
+		os.Exit(1) //nolint:forbidigo
 	}
 
 	fmt.Print(string(out))
