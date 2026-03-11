@@ -54,7 +54,7 @@ type K6Binary struct {
 func (b K6Binary) UnmarshalDeps() string {
 	buffer := &bytes.Buffer{}
 	for dep, version := range b.Dependencies {
-		buffer.WriteString(fmt.Sprintf("%s:%q;", dep, version))
+		fmt.Fprintf(buffer, "%s:%q;", dep, version)
 	}
 	return buffer.String()
 }
@@ -130,12 +130,12 @@ func NewProvider(config Config) (*Provider, error) {
 		binDir = config.BinaryCacheDir
 	}
 	if binDir == "" {
-		binDir = os.Getenv("K6_BINARY_CACHE")
+		binDir = os.Getenv("K6_BINARY_CACHE") //nolint:forbidigo
 	}
 	if binDir == "" {
-		cacheDir, err := os.UserCacheDir()
+		cacheDir, err := os.UserCacheDir() //nolint:forbidigo
 		if err != nil {
-			cacheDir = os.TempDir()
+			cacheDir = os.TempDir() //nolint:forbidigo
 		}
 		binDir = filepath.Join(cacheDir, "k6provider")
 	}
@@ -146,7 +146,7 @@ func NewProvider(config Config) (*Provider, error) {
 		cacheSize = config.BinaryCacheSize
 	}
 	if cacheSize == 0 {
-		cacheSize, err = parseSize(os.Getenv("K6_BINARY_CACHE_SIZE"))
+		cacheSize, err = parseSize(os.Getenv("K6_BINARY_CACHE_SIZE")) //nolint:forbidigo
 		if err != nil {
 			return nil, NewWrappedError(ErrConfig, err)
 		}
@@ -156,7 +156,7 @@ func NewProvider(config Config) (*Provider, error) {
 
 	buildSrvURL := config.BuildServiceURL
 	if buildSrvURL == "" {
-		buildSrvURL = os.Getenv("K6_BUILD_SERVICE_URL")
+		buildSrvURL = os.Getenv("K6_BUILD_SERVICE_URL") //nolint:forbidigo
 	}
 	if buildSrvURL == "" {
 		return nil, NewWrappedError(ErrConfig, fmt.Errorf("build service URL is required"))
@@ -164,7 +164,7 @@ func NewProvider(config Config) (*Provider, error) {
 
 	buildSrvAuth := config.BuildServiceAuth
 	if buildSrvAuth == "" {
-		buildSrvAuth = os.Getenv("K6_BUILD_SERVICE_AUTH")
+		buildSrvAuth = os.Getenv("K6_BUILD_SERVICE_AUTH") //nolint:forbidigo
 	}
 
 	buildSrv, err := newBuildServiceClient(
@@ -281,7 +281,7 @@ func (p *Provider) GetBinary(ctx context.Context, constrains Dependencies) (K6Bi
 	// ensure the binary's directory always exists
 	// this is slightly inefficient but simplifies logic
 	artifactDir := filepath.Join(p.binDir, artifact.ID)
-	err = os.MkdirAll(artifactDir, 0o700)
+	err = os.MkdirAll(artifactDir, 0o700) //nolint:forbidigo
 	if err != nil {
 		return K6Binary{}, NewWrappedError(ErrBinary, err)
 	}
@@ -295,7 +295,7 @@ func (p *Provider) GetBinary(ctx context.Context, constrains Dependencies) (K6Bi
 	defer lock.unlock() //nolint:errcheck
 
 	binPath := filepath.Join(artifactDir, k6Binary)
-	_, err = os.Stat(binPath)
+	_, err = os.Stat(binPath) //nolint:forbidigo
 
 	// binary already exists and is valid
 	if err == nil {
@@ -310,13 +310,13 @@ func (p *Provider) GetBinary(ctx context.Context, constrains Dependencies) (K6Bi
 	}
 
 	// if there's other error)
-	if !os.IsNotExist(err) {
+	if !os.IsNotExist(err) { //nolint:forbidigo
 		return K6Binary{}, NewWrappedError(ErrBinary, err)
 	}
 
 	err = p.downloader.download(ctx, artifact.URL, binPath, artifact.Checksum)
 	if err != nil {
-		_ = os.RemoveAll(artifactDir)
+		_ = os.RemoveAll(artifactDir) //nolint:forbidigo
 		return K6Binary{}, NewWrappedError(ErrDownload, err)
 	}
 
