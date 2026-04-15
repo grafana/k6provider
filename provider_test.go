@@ -49,7 +49,7 @@ func newTestEnv(t *testing.T) *testEnv {
 
 	workDir := t.TempDir()
 	storeDir := filepath.Join(workDir, "store")
-	if err := os.MkdirAll(storeDir, 0o700); err != nil {
+	if err := os.MkdirAll(storeDir, 0o700); err != nil { //nolint:forbidigo
 		t.Fatalf("creating store dir: %v", err)
 	}
 
@@ -58,13 +58,13 @@ func newTestEnv(t *testing.T) *testEnv {
 	if runtime.GOOS == "windows" {
 		binPath += ".exe"
 	}
-	cmd := exec.Command("go", "build", "-o", binPath, ".")
+	cmd := exec.Command("go", "build", "-o", binPath, ".") //nolint:noctx // test helper
 	cmd.Dir = filepath.Join("testdata", "fake_k6")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("building fake k6: %v\n%s", err, out)
 	}
 
-	binData, err := os.ReadFile(binPath)
+	binData, err := os.ReadFile(binPath) //nolint:forbidigo
 	if err != nil {
 		t.Fatalf("reading binary: %v", err)
 	}
@@ -294,15 +294,15 @@ func Test_Provider(t *testing.T) { //nolint:tparallel
 
 				// in case of error the binary should not be downloaded
 				if tc.expectErr != nil {
-					_, err := os.Stat(k6.Path)
-					if !os.IsNotExist(err) {
+					_, err := os.Stat(k6.Path) //nolint:forbidigo
+					if !os.IsNotExist(err) {   //nolint:forbidigo
 						t.Fatalf("expected binary not to be downloaded")
 					}
 					return
 				}
 
 				// in case of not error, we expect the binary to be downloaded
-				cmd := exec.Command(k6.Path, "version")
+				cmd := exec.Command(k6.Path, "version") //nolint:noctx // test helper
 
 				out, err := cmd.Output()
 				if err != nil {
@@ -338,7 +338,7 @@ func Test_Provider(t *testing.T) { //nolint:tparallel
 					errs <- err
 					return
 				}
-				cmd := exec.Command(k6.Path, "version")
+				cmd := exec.Command(k6.Path, "version") //nolint:noctx // test helper
 
 				err = cmd.Run()
 				if err != nil {
@@ -418,7 +418,7 @@ func Test_Provider(t *testing.T) { //nolint:tparallel
 				}
 
 				// cleanup cache dir to avoid cached binaries
-				if err := os.RemoveAll(cacheDir); err != nil {
+				if err := os.RemoveAll(cacheDir); err != nil { //nolint:forbidigo
 					t.Fatalf("cleaning up cache dir %v", err)
 				}
 

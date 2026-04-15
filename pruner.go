@@ -43,7 +43,7 @@ func (p *Pruner) Touch(binPath string) {
 	if p.hwm > 0 {
 		p.pruneLock.Lock()
 		defer p.pruneLock.Unlock()
-		_ = os.Chtimes(binPath, time.Now(), time.Now())
+		_ = os.Chtimes(binPath, time.Now(), time.Now()) //nolint:forbidigo
 	}
 }
 
@@ -77,7 +77,7 @@ func (p *Pruner) Prune() error {
 		_ = p.dirLock.unlock()
 	}()
 
-	binaries, err := os.ReadDir(p.dir)
+	binaries, err := os.ReadDir(p.dir) //nolint:forbidigo
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrPruningCache, err)
 	}
@@ -92,7 +92,7 @@ func (p *Pruner) Prune() error {
 		}
 
 		binPath := filepath.Join(p.dir, binDir.Name(), k6Binary)
-		binInfo, err := os.Stat(binPath)
+		binInfo, err := os.Stat(binPath) //nolint:forbidigo
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -116,7 +116,7 @@ func (p *Pruner) Prune() error {
 	})
 
 	for _, target := range pruneTargets {
-		if err := os.RemoveAll(target.path); err != nil {
+		if err := os.RemoveAll(target.path); err != nil { //nolint:forbidigo
 			errs = append(errs, err)
 			continue
 		}
