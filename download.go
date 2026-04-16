@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -52,10 +53,11 @@ type downloader struct {
 	headers  map[string]string
 	retries  int
 	backoff  time.Duration
+	logger   *slog.Logger
 }
 
 // newDownloader returns a new Downloader
-func newDownloader(config DownloadConfig) (*downloader, error) {
+func newDownloader(config DownloadConfig, logger *slog.Logger) (*downloader, error) {
 	httpClient := http.DefaultClient
 
 	proxyURL := config.ProxyURL
@@ -81,7 +83,6 @@ func newDownloader(config DownloadConfig) (*downloader, error) {
 	if downloadAuthType == "" {
 		downloadAuthType = "Bearer"
 	}
-
 	return &downloader{
 		client:   httpClient,
 		auth:     downloadAuth,
@@ -89,6 +90,7 @@ func newDownloader(config DownloadConfig) (*downloader, error) {
 		headers:  config.Headers,
 		retries:  config.Retries,
 		backoff:  config.Backoff,
+		logger:   logger,
 	}, nil
 }
 
@@ -144,6 +146,11 @@ func (d *downloader) download(ctx context.Context, from string, path string, che
 			break
 		}
 
+		d.logger.Debug("Download retry",
+			"retries_left", retries,
+			"backoff", backoff,
+			"error", err,
+		)
 		time.Sleep(backoff)
 
 		// increase backoff exponentially for next retry

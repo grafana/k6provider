@@ -8,6 +8,8 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -110,6 +112,7 @@ type Provider struct {
 	buildSrv   *buildClient
 	platform   string
 	pruner     *Pruner
+	logger     *slog.Logger
 }
 
 // NewDefaultProvider returns a Provider with default settings
@@ -122,6 +125,16 @@ func NewDefaultProvider() (*Provider, error) {
 
 // NewProvider returns a [Provider] with the given Config
 func NewProvider(config Config) (*Provider, error) {
+	return NewProviderWithLogger(config, nil)
+}
+
+// NewProviderWithLogger returns a [Provider] with the given Config and logger.
+// If logger is nil, a discard logger is used.
+func NewProviderWithLogger(config Config, logger *slog.Logger) (*Provider, error) {
+	if logger == nil {
+		logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	}
+
 	var err error
 
 	// try first deprecated BinDir
@@ -183,10 +196,12 @@ func NewProvider(config Config) (*Provider, error) {
 		pruneInterval = defaultPruneInterval
 	}
 
-	downloader, err := newDownloader(config.DownloadConfig)
+	downloader, err := newDownloader(config.DownloadConfig, logger)
 	if err != nil {
 		return nil, NewWrappedError(ErrConfig, err)
 	}
+
+	pruner := NewPrunerWithLogger(binDir, cacheSize, pruneInterval, logger)
 
 	return &Provider{
 		client:     httpClient,
@@ -194,7 +209,8 @@ func NewProvider(config Config) (*Provider, error) {
 		binDir:     binDir,
 		buildSrv:   buildSrv,
 		platform:   platform,
-		pruner:     NewPruner(binDir, cacheSize, pruneInterval),
+		pruner:     pruner,
+		logger:     logger,
 	}, nil
 }
 
@@ -221,6 +237,10 @@ func (p *Provider) GetArtifact(
 ) (Artifact, error) {
 	k6Constrains, buildDeps := buildDeps(deps)
 
+	p.logger.Debug("Resolving k6 artifact",
+		"deps", deps,
+		"platform", p.platform,
+	)
 	artifact, err := p.buildSrv.Build(ctx, p.platform, k6Constrains, buildDeps)
 	if err != nil {
 		if !errors.Is(err, ErrInvalidParameters) {
@@ -248,13 +268,20 @@ func (p *Provider) GetArtifact(
 		}
 		checksum = fmt.Sprintf("%x", decoded)
 	}
-	return Artifact{
+
+	resolved := Artifact{
 		ID:           artifact.ID,
 		URL:          artifact.URL,
 		Dependencies: artifact.Dependencies,
 		Platform:     artifact.Platform,
 		Checksum:     checksum,
-	}, nil
+	}
+	p.logger.Debug("Artifact resolved",
+		"artifact_id", resolved.ID,
+		"deps", resolved.Dependencies,
+		"url", resolved.URL,
+	)
+	return resolved, nil
 }
 
 // GetBinary returns a custom k6 binary that satisfies the given a set of dependencies.
@@ -299,6 +326,11 @@ func (p *Provider) GetBinary(ctx context.Context, constrains Dependencies) (K6Bi
 
 	// binary already exists and is valid
 	if err == nil {
+		p.logger.Info("Using cached k6 binary",
+			"path", binPath,
+			"artifact_id", artifact.ID,
+			"deps", artifact.Dependencies,
+		)
 		go p.pruner.Touch(binPath)
 
 		return K6Binary{
@@ -314,11 +346,24 @@ func (p *Provider) GetBinary(ctx context.Context, constrains Dependencies) (K6Bi
 		return K6Binary{}, NewWrappedError(ErrBinary, err)
 	}
 
+	p.logger.Info("Downloading custom k6 binary",
+		"artifact_id", artifact.ID,
+		"deps", artifact.Dependencies,
+	)
+	p.logger.Debug("Downloading custom k6 binary",
+		"url", artifact.URL,
+	)
 	err = p.downloader.download(ctx, artifact.URL, binPath, artifact.Checksum)
 	if err != nil {
 		_ = os.RemoveAll(artifactDir) //nolint:forbidigo
 		return K6Binary{}, NewWrappedError(ErrDownload, err)
 	}
+
+	p.logger.Info("Custom k6 binary ready",
+		"path", binPath,
+		"artifact_id", artifact.ID,
+		"deps", artifact.Dependencies,
+	)
 
 	// start pruning in background
 	// TODO: handle case the calling process is cancelled
