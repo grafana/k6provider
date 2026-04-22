@@ -479,3 +479,33 @@ func Test_Provider_GetCachedBinary(t *testing.T) {
 		if bin.Path != "" {
 			t.Fatalf("expected empty path on cache miss, got %q", bin.Path)
 		}
+	})
+
+	t.Run("cached binary hit", func(t *testing.T) {
+		t.Parallel()
+
+		provider, err := NewProvider(Config{
+			BinaryCacheDir:  filepath.Join(t.TempDir(), "provider"),
+			BuildServiceURL: testEnv.BuildServiceURL(),
+		})
+		if err != nil {
+			t.Fatalf("initializing provider %v", err)
+		}
+
+		k6, err := provider.GetBinary(t.Context(), deps)
+		if err != nil {
+			t.Fatalf("GetBinary: %v", err)
+		}
+
+		bin, err := provider.GetCachedBinary(t.Context(), deps)
+		if err != nil {
+			t.Fatalf("GetCachedBinary: %v", err)
+		}
+		if !bin.Cached {
+			t.Fatal("expected cached binary")
+		}
+		if bin.Path != k6.Path {
+			t.Fatalf("expected cached path %s, got %s", k6.Path, bin.Path)
+		}
+	})
+}
