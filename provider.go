@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
@@ -365,6 +366,24 @@ func (p *Provider) GetBinary(ctx context.Context, constrains Dependencies) (K6Bi
 		Cached:       false,
 		DownloadURL:  artifact.URL,
 	}, nil
+}
+
+// GetCachedBinary resolves the artifact via the build service, then looks up a cached local binary
+// for the dependencies. If the binary is cached, it returns it with Cached=true and marks it as recently
+// used for pruning. On cache miss it returns [fs.ErrNotExist]. It does not download the binary.
+func (p *Provider) GetCachedBinary(ctx context.Context, constraints Dependencies) (K6Binary, error) {
+	artifact, err := p.GetArtifact(ctx, constraints)
+	if err != nil {
+		return K6Binary{}, err
+	}
+	bin, err := p.resolveBinary(artifact)
+	if err != nil {
+		return K6Binary{}, err
+	}
+	if !bin.Cached {
+		return K6Binary{}, fs.ErrNotExist
+	}
+	return bin, nil
 }
 
 // resolveBinary resolves the local binary for the given artifact. If the binary is
