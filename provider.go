@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
@@ -321,29 +322,18 @@ func (p *Provider) GetBinary(ctx context.Context, constrains Dependencies) (K6Bi
 	}
 	defer lock.unlock() //nolint:errcheck
 
-	binPath := filepath.Join(artifactDir, k6Binary)
-	_, err = os.Stat(binPath) //nolint:forbidigo
-
-	// binary already exists and is valid
-	if err == nil {
+	bin, err := p.resolveBinary(artifact)
+	if err != nil {
+		return K6Binary{}, err
+	}
+	binPath := bin.Path
+	if bin.Cached {
 		p.logger.Info("Using cached k6 binary",
 			"path", binPath,
 			"artifact_id", artifact.ID,
 			"deps", artifact.Dependencies,
 		)
-		go p.pruner.Touch(binPath)
-
-		return K6Binary{
-			Path:         binPath,
-			Dependencies: artifact.Dependencies,
-			Checksum:     artifact.Checksum,
-			Cached:       true,
-		}, nil
-	}
-
-	// if there's other error)
-	if !os.IsNotExist(err) { //nolint:forbidigo
-		return K6Binary{}, NewWrappedError(ErrBinary, err)
+		return bin, nil
 	}
 
 	p.logger.Info("Downloading custom k6 binary",
@@ -376,6 +366,51 @@ func (p *Provider) GetBinary(ctx context.Context, constrains Dependencies) (K6Bi
 		Cached:       false,
 		DownloadURL:  artifact.URL,
 	}, nil
+}
+
+// GetCachedBinary resolves the artifact via the build service, then looks up a cached local binary
+// for the dependencies. If the binary is cached, it returns it with Cached=true and marks it as recently
+// used for pruning. On cache miss it returns [fs.ErrNotExist]. It does not download the binary.
+func (p *Provider) GetCachedBinary(ctx context.Context, constraints Dependencies) (K6Binary, error) {
+	artifact, err := p.GetArtifact(ctx, constraints)
+	if err != nil {
+		return K6Binary{}, err
+	}
+	bin, err := p.resolveBinary(artifact)
+	if err != nil {
+		return K6Binary{}, err
+	}
+	if !bin.Cached {
+		return K6Binary{}, fs.ErrNotExist
+	}
+	return bin, nil
+}
+
+// resolveBinary resolves the local binary for the given artifact. If the binary is
+// cached, it returns it with Cached=true. Otherwise, it returns a K6Binary whose
+// Path is where the binary should be downloaded. It does not download the binary.
+func (p *Provider) resolveBinary(artifact Artifact) (K6Binary, error) {
+	binPath := filepath.Join(p.binDir, artifact.ID, k6Binary)
+	_, err := os.Stat(binPath) //nolint:forbidigo
+
+	// binary already exists and is valid
+	if err == nil {
+		go p.pruner.Touch(binPath)
+
+		return K6Binary{
+			Path:         binPath,
+			Dependencies: artifact.Dependencies,
+			Checksum:     artifact.Checksum,
+			Cached:       true,
+		}, nil
+	}
+
+	// if there's other error)
+	if !os.IsNotExist(err) { //nolint:forbidigo
+		return K6Binary{}, NewWrappedError(ErrBinary, err)
+	}
+
+	return K6Binary{Path: binPath}, nil
 }
 
 func buildDeps(deps Dependencies) (string, []dependency) {
