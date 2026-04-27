@@ -21,7 +21,6 @@ import (
 const (
 	k6Module             = "k6"
 	defaultPruneInterval = time.Hour
-
 )
 
 var (
