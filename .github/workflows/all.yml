@@ -11,6 +11,7 @@ on:
 
 jobs:
   checks:
-    uses: grafana/k6-ci/.github/workflows/all.yml@40021b94d407d92bff09e4229f102306d68bb7e0 # lint-action branch — bump once grafana/k6-ci#33 merges
+    uses: grafana/k6-ci/.github/workflows/all.yml@1024dc57c16ede322d654963223af198be6a1eda # lint-action branch — bump once grafana/k6-ci#33 merges
     with:
+      k6-ci-ref: 1024dc57c16ede322d654963223af198be6a1eda
       skip-extension-testing: true
