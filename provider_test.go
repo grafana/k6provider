@@ -330,10 +330,7 @@ func Test_Provider(t *testing.T) { //nolint:tparallel
 		errs := make(chan error, 10)
 
 		for range 3 {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-
+			wg.Go(func() {
 				k6, err := provider.GetBinary(context.TODO(), deps)
 				if err != nil {
 					errs <- err
@@ -345,7 +342,7 @@ func Test_Provider(t *testing.T) { //nolint:tparallel
 				if err != nil {
 					errs <- err
 				}
-			}()
+			})
 		}
 
 		wg.Wait()
