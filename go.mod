@@ -1,5 +1,5 @@
 module github.com/grafana/k6provider
 
-go 1.24.0
+go 1.25.0
 
-toolchain go1.26.4
+toolchain go1.25.11
