@@ -123,41 +123,7 @@ func (d *downloader) download(ctx context.Context, from string, path string, che
 		req.Header.Add(h, v)
 	}
 
-	var (
-		resp    *http.Response
-		backoff = d.backoff
-		retries = d.retries
-	)
-
-	if retries == 0 {
-		retries = DefaultRetries
-	}
-
-	if backoff == 0 {
-		backoff = DefaultBackoff
-	}
-
-	// try at least once
-	for {
-		// it is safe to reuse the request as it doesn't have a body
-		resp, err = d.client.Do(req) //nolint:gosec // G704: URL is from artifact, not user input
-
-		if retries == 0 || !shouldRetry(err, resp) {
-			break
-		}
-
-		d.logger.Debug("Download retry",
-			"retries_left", retries,
-			"backoff", backoff,
-			"error", err,
-		)
-		time.Sleep(backoff)
-
-		// increase backoff exponentially for next retry
-		backoff *= 2
-		retries--
-	}
-
+	resp, err := d.doWithRetry(req)
 	if err != nil {
 		return err
 	}
@@ -190,6 +156,39 @@ func (d *downloader) download(ctx context.Context, from string, path string, che
 	err = os.Rename(downloadBin, path) //nolint:forbidigo
 
 	return err
+}
+
+func (d *downloader) doWithRetry(req *http.Request) (*http.Response, error) {
+	backoff := d.backoff
+	retries := d.retries
+
+	if retries == 0 {
+		retries = DefaultRetries
+	}
+
+	if backoff == 0 {
+		backoff = DefaultBackoff
+	}
+
+	// Try at least once. It is safe to reuse the request because it does not have a body.
+	for {
+		resp, err := d.client.Do(req)
+		if retries == 0 || !shouldRetry(err, resp) {
+			return resp, err
+		}
+
+		d.logger.Debug(
+			"Download retry",
+			"retries_left", retries,
+			"backoff", backoff,
+			"error", err,
+		)
+		time.Sleep(backoff)
+
+		// increase backoff exponentially for next retry
+		backoff *= 2
+		retries--
+	}
 }
 
 // shouldRetry returns true if the error or response indicates that the request should be retried
