@@ -20,6 +20,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 // testEnv is a mock test environment that provides build and store servers
@@ -201,6 +202,29 @@ func Test_Provider(t *testing.T) { //nolint:tparallel
 					BuildServiceAuth: "",
 				},
 				buildProxy: newAuthorizationProxy(testEnv.BuildServiceURL(), "Authorization", "Bearer token"),
+				expectErr:  ErrBuild,
+			},
+			{
+				title:      "test build retries on gateway timeout",
+				buildProxy: newUnreliableProxy(testEnv.BuildServiceURL(), http.StatusGatewayTimeout, 1),
+			},
+			{
+				title:      "test build retries on bad gateway",
+				buildProxy: newUnreliableProxy(testEnv.BuildServiceURL(), http.StatusBadGateway, 1),
+			},
+			{
+				title:      "test build retries on service unavailable",
+				buildProxy: newUnreliableProxy(testEnv.BuildServiceURL(), http.StatusServiceUnavailable, 1),
+			},
+			{
+				title:      "test build does not retry forever",
+				config:     Config{BuildServiceRetries: 1, BuildServiceBackoff: time.Millisecond},
+				buildProxy: newUnreliableProxy(testEnv.BuildServiceURL(), http.StatusGatewayTimeout, math.MaxInt),
+				expectErr:  ErrBuild,
+			},
+			{
+				title:      "test build does not retry non-transient errors",
+				buildProxy: newUnreliableProxy(testEnv.BuildServiceURL(), http.StatusBadRequest, math.MaxInt),
 				expectErr:  ErrBuild,
 			},
 			{
@@ -405,6 +429,26 @@ func Test_Provider(t *testing.T) { //nolint:tparallel
 					"K6_BUILD_SERVICE_URL": "",
 				},
 				config:    Config{},
+				expectErr: ErrConfig,
+			},
+			{
+				title: "negative build service retries is rejected",
+				env:   map[string]string{},
+				config: Config{
+					BinaryCacheDir:      cacheDir,
+					BuildServiceURL:     testEnv.BuildServiceURL(),
+					BuildServiceRetries: -1,
+				},
+				expectErr: ErrConfig,
+			},
+			{
+				title: "negative build service backoff is rejected",
+				env:   map[string]string{},
+				config: Config{
+					BinaryCacheDir:      cacheDir,
+					BuildServiceURL:     testEnv.BuildServiceURL(),
+					BuildServiceBackoff: -1 * time.Second,
+				},
 				expectErr: ErrConfig,
 			},
 		}
